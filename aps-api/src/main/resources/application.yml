@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: aps-system
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/aps
+    username: aps_user
+    password: aps_pass
+    driver-class-name: org.postgresql.Driver
+
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+
+logging:
+  charset:
+    console: UTF-8
+
+timefold:
+  solver:
+    termination:
+      spent-limit: 30s
+
+jwt:
+  secret: ${JWT_SECRET:APS-System-Secret-Key-Change-This-In-Production-Min-256-Bits-Required-For-Security}
+  expiration: 3600000  # 1小时（毫秒）
+  refresh-expiration: 604800000  # 7天（毫秒）
+  cookie:
+    secure: ${JWT_COOKIE_SECURE:false}  # 生产环境设为 true
+
+app:
+  seed:
+    enabled: true
+    admin:
+      username: ${APP_SEED_ADMIN_USERNAME:admin}
+      password: ${APP_SEED_ADMIN_PASSWORD:admin123}
+      email: ${APP_SEED_ADMIN_EMAIL:admin@aps.com}

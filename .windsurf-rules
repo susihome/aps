@@ -1,0 +1,20 @@
+# APS Project Rules & Standards
+
+## 1. 技术栈约束 (Tech Stack)
+- **Backend**: Spring Boot 3.4+, JDK 21 (使用虚拟线程提升求解性能)。
+- **Solver**: Timefold Solver (必须使用 Constraint Streams API)。
+- **Database**: PostgreSQL，主键必须使用 `java.util.UUID`。
+- **Frontend**: Vue 3 + Tailwind CSS + Frappe-Gantt。
+
+## 2. 命名与模型规范 (Domain Modeling)
+- 遵循 **ISA-95** 标准：设备称为 `Resource`，工序称为 `Operation`，任务称为 `Task`。
+- 所有 DTO 和 Entity 必须包含 `createTime` 和 `updateTime`。
+
+## 3. 代码质量要求 (Code Quality)
+- **TDD (测试驱动开发)**：在编写 Solver 逻辑前，必须先写 `ConstraintVerifier` 测试用例。
+- **并发安全**：由于排产涉及大量计算，共享变量必须使用 `final` 或原子类。
+- **异常处理**：全局统一异常捕获，返回格式固定为 RuoYi-Vue-Plus 的 `AjaxResult`。
+
+## 4. UI 规范 (UI/UX)
+- 甘特图拖拽必须触发异步校验，逻辑：`UI Drag -> Backend Validate -> UI Update/Revert`。
+- 颜色体系：明亮的蓝色主色调 (#2563EB)，任务条根据状态（正常、逾期、欠料）显示不同颜色。
