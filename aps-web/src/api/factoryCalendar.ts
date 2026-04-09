@@ -20,6 +20,7 @@ export interface CalendarShift {
   startTime: string
   endTime: string
   sortOrder: number
+  nextDay: boolean
 }
 
 export interface CalendarDate {
@@ -36,10 +37,10 @@ interface AjaxResult<T> {
 }
 
 function unwrap<T>(result: AjaxResult<T>): T {
-  if (result.code !== 200 || result.data == null) {
+  if (result.code !== 200) {
     throw new Error(result.message || '请求失败')
   }
-  return result.data
+  return result.data as T
 }
 
 export const factoryCalendarApi = {
@@ -80,12 +81,12 @@ export const factoryCalendarApi = {
     return unwrap(data)
   },
 
-  addShift: async (calendarId: string, form: { name: string; startTime: string; endTime: string; sortOrder?: number }) => {
+  addShift: async (calendarId: string, form: { name: string; startTime: string; endTime: string; sortOrder?: number; nextDay?: boolean }) => {
     const { data } = await axiosInstance.post<AjaxResult<CalendarShift>>(`/factory-calendars/${calendarId}/shifts`, form)
     return unwrap(data)
   },
 
-  updateShift: async (calendarId: string, shiftId: string, form: { name?: string; startTime?: string; endTime?: string; sortOrder?: number }) => {
+  updateShift: async (calendarId: string, shiftId: string, form: { name?: string; startTime?: string; endTime?: string; sortOrder?: number; nextDay?: boolean }) => {
     const { data } = await axiosInstance.put<AjaxResult<CalendarShift>>(`/factory-calendars/${calendarId}/shifts/${shiftId}`, form)
     return unwrap(data)
   },
@@ -110,6 +111,11 @@ export const factoryCalendarApi = {
 
   batchSetHolidays: async (calendarId: string, form: { dates: string[]; label?: string }) => {
     const { data } = await axiosInstance.post<AjaxResult<null>>(`/factory-calendars/${calendarId}/dates/holidays`, form)
+    unwrap(data)
+  },
+
+  applyWeekendPattern: async (calendarId: string, form: { pattern: 'SINGLE' | 'DOUBLE' }) => {
+    const { data } = await axiosInstance.put<AjaxResult<null>>(`/factory-calendars/${calendarId}/dates/weekend-pattern`, form)
     unwrap(data)
   },
 

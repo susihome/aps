@@ -22,6 +22,7 @@ CREATE TABLE calendar_shifts (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     sort_order INT DEFAULT 0,
+    next_day BOOLEAN DEFAULT FALSE,
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

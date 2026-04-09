@@ -9,6 +9,11 @@ import com.aps.domain.entity.CalendarShift;
 import com.aps.domain.entity.FactoryCalendar;
 import com.aps.domain.enums.DateType;
 import com.aps.service.FactoryCalendarService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,7 +41,7 @@ public class FactoryCalendarController {
                 : calendarService.getAllCalendars();
         List<FactoryCalendarDto> dtos = calendars.stream()
                 .map(cal -> FactoryCalendarDto.fromEntity(cal,
-                        calendarService.countWorkdays(cal.getId(), cal.getYear(), 1)))
+                        calendarService.countYearWorkdays(cal.getId(), cal.getYear())))
                 .toList();
         return AjaxResult.success(dtos);
     }
@@ -48,7 +53,7 @@ public class FactoryCalendarController {
     }
 
     @PostMapping
-    public AjaxResult<FactoryCalendarDto> createCalendar(@RequestBody CreateCalendarRequest request) {
+    public AjaxResult<FactoryCalendarDto> createCalendar(@Valid @RequestBody CreateCalendarRequest request) {
         FactoryCalendar cal = calendarService.createCalendar(
                 request.name(), request.code(), request.year(), request.description());
         return AjaxResult.success(FactoryCalendarDto.fromEntity(cal));
@@ -56,7 +61,7 @@ public class FactoryCalendarController {
 
     @PutMapping("/{id}")
     public AjaxResult<FactoryCalendarDto> updateCalendar(@PathVariable UUID id,
-                                                          @RequestBody UpdateCalendarRequest request) {
+                                                          @Valid @RequestBody UpdateCalendarRequest request) {
         FactoryCalendar cal = calendarService.updateCalendar(
                 id, request.name(), request.description(), request.enabled());
         return AjaxResult.success(FactoryCalendarDto.fromEntity(cal));
@@ -84,22 +89,24 @@ public class FactoryCalendarController {
 
     @PostMapping("/{id}/shifts")
     public AjaxResult<CalendarShiftDto> addShift(@PathVariable UUID id,
-                                                  @RequestBody ShiftRequest request) {
+                                                  @Valid @RequestBody ShiftRequest request) {
         CalendarShift shift = calendarService.addShift(
-                id, request.name(), request.startTime(), request.endTime(), request.sortOrder());
+                id, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.nextDay());
         return AjaxResult.success(CalendarShiftDto.fromEntity(shift));
     }
 
     @PutMapping("/{id}/shifts/{shiftId}")
-    public AjaxResult<CalendarShiftDto> updateShift(@PathVariable UUID shiftId,
-                                                     @RequestBody ShiftRequest request) {
+    public AjaxResult<CalendarShiftDto> updateShift(@PathVariable UUID id,
+                                                     @PathVariable UUID shiftId,
+                                                     @Valid @RequestBody ShiftRequest request) {
         CalendarShift shift = calendarService.updateShift(
-                shiftId, request.name(), request.startTime(), request.endTime(), request.sortOrder());
+                shiftId, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.nextDay());
         return AjaxResult.success(CalendarShiftDto.fromEntity(shift));
     }
 
     @DeleteMapping("/{id}/shifts/{shiftId}")
-    public AjaxResult<Void> deleteShift(@PathVariable UUID shiftId) {
+    public AjaxResult<Void> deleteShift(@PathVariable UUID id,
+                                         @PathVariable UUID shiftId) {
         calendarService.deleteShift(shiftId);
         return AjaxResult.success(null);
     }
@@ -118,30 +125,82 @@ public class FactoryCalendarController {
 
     @PutMapping("/{id}/dates")
     public AjaxResult<Void> updateDateType(@PathVariable UUID id,
-                                            @RequestBody UpdateDateRequest request) {
+                                            @Valid @RequestBody UpdateDateRequest request) {
         calendarService.updateDateType(id, request.date(), request.dateType(), request.label());
         return AjaxResult.success(null);
     }
 
     @PostMapping("/{id}/dates/holidays")
     public AjaxResult<Void> batchSetHolidays(@PathVariable UUID id,
-                                              @RequestBody BatchDateRequest request) {
+                                              @Valid @RequestBody BatchDateRequest request) {
         calendarService.batchSetHolidays(id, request.dates(), request.label());
         return AjaxResult.success(null);
     }
 
     @PutMapping("/{id}/dates/batch")
     public AjaxResult<Void> batchUpdateDates(@PathVariable UUID id,
-                                               @RequestBody BatchUpdateDateRequest request) {
+                                               @Valid @RequestBody BatchUpdateDateRequest request) {
         calendarService.batchUpdateDates(id, request.dates(), request.dateType(), request.label());
         return AjaxResult.success(null);
     }
 
+    @PutMapping("/{id}/dates/weekend-pattern")
+    public AjaxResult<Void> applyWeekendPattern(@PathVariable UUID id,
+                                                @Valid @RequestBody WeekendPatternRequest request) {
+        calendarService.applyWeekendPattern(id, request.pattern());
+        return AjaxResult.success(null);
+    }
+
     // ===== Request Records =====
-    public record CreateCalendarRequest(String name, String code, Integer year, String description) {}
-    public record UpdateCalendarRequest(String name, String description, Boolean enabled) {}
-    public record ShiftRequest(String name, LocalTime startTime, LocalTime endTime, Integer sortOrder) {}
-    public record UpdateDateRequest(LocalDate date, DateType dateType, String label) {}
-    public record BatchDateRequest(List<LocalDate> dates, String label) {}
-    public record BatchUpdateDateRequest(List<LocalDate> dates, DateType dateType, String label) {}
+    public record CreateCalendarRequest(
+            @NotBlank(message = "日历名称不能为空")
+            String name,
+            @NotBlank(message = "日历编码不能为空")
+            String code,
+            @NotNull(message = "年份不能为空")
+            @Min(value = 2020, message = "年份不能早于2020年")
+            @Max(value = 2099, message = "年份不能晚于2099年")
+            Integer year,
+            String description) {}
+
+    public record UpdateCalendarRequest(
+            @NotBlank(message = "日历名称不能为空")
+            String name,
+            String description,
+            Boolean enabled) {}
+
+    public record ShiftRequest(
+            @NotBlank(message = "班次名称不能为空")
+            String name,
+            @NotNull(message = "开始时间不能为空")
+            LocalTime startTime,
+            @NotNull(message = "结束时间不能为空")
+            LocalTime endTime,
+            @Min(value = 0, message = "排序值不能为负数")
+            Integer sortOrder,
+            @NotNull(message = "是否跨天不能为空")
+            Boolean nextDay) {}
+
+    public record UpdateDateRequest(
+            @NotNull(message = "日期不能为空")
+            LocalDate date,
+            @NotNull(message = "日期类型不能为空")
+            DateType dateType,
+            String label) {}
+
+    public record BatchDateRequest(
+            @NotNull(message = "日期列表不能为空")
+            List<LocalDate> dates,
+            String label) {}
+
+    public record BatchUpdateDateRequest(
+            @NotNull(message = "日期列表不能为空")
+            List<LocalDate> dates,
+            @NotNull(message = "日期类型不能为空")
+            DateType dateType,
+            String label) {}
+
+    public record WeekendPatternRequest(
+            @NotBlank(message = "单双休模式不能为空")
+            String pattern) {}
 }

@@ -27,4 +27,7 @@ public class CalendarShift extends BaseEntity {
 
     @Column(name = "sort_order")
     private Integer sortOrder = 0;
+
+    @Column(name = "next_day", nullable = false)
+    private Boolean nextDay = false;
 }

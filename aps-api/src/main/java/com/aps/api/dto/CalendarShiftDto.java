@@ -18,6 +18,7 @@ public class CalendarShiftDto {
     private LocalTime startTime;
     private LocalTime endTime;
     private Integer sortOrder;
+    private Boolean nextDay;
 
     public static CalendarShiftDto fromEntity(com.aps.domain.entity.CalendarShift shift) {
         return CalendarShiftDto.builder()
@@ -26,6 +27,7 @@ public class CalendarShiftDto {
                 .startTime(shift.getStartTime())
                 .endTime(shift.getEndTime())
                 .sortOrder(shift.getSortOrder())
+                .nextDay(shift.getNextDay())
                 .build();
     }
 }

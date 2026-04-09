@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -108,7 +109,10 @@ public class FactoryCalendarService {
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
-    public CalendarShift addShift(UUID calendarId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder) {
+    public CalendarShift addShift(UUID calendarId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Boolean nextDay) {
+        // 验证班次时间
+        validateShiftTime(startTime, endTime, nextDay);
+
         FactoryCalendar calendar = getCalendarById(calendarId);
         CalendarShift shift = new CalendarShift();
         shift.setCalendar(calendar);
@@ -116,18 +120,27 @@ public class FactoryCalendarService {
         shift.setStartTime(startTime);
         shift.setEndTime(endTime);
         shift.setSortOrder(sortOrder != null ? sortOrder : 0);
+        shift.setNextDay(nextDay != null ? nextDay : false);
         return shiftRepository.save(shift);
     }
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
-    public CalendarShift updateShift(UUID shiftId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder) {
+    public CalendarShift updateShift(UUID shiftId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Boolean nextDay) {
         CalendarShift shift = shiftRepository.findById(shiftId)
                 .orElseThrow(() -> new ResourceNotFoundException("班次不存在: " + shiftId));
+
+        // 验证班次时间（如果提供了新时间）
+        LocalTime newStartTime = startTime != null ? startTime : shift.getStartTime();
+        LocalTime newEndTime = endTime != null ? endTime : shift.getEndTime();
+        Boolean newNextDay = nextDay != null ? nextDay : shift.getNextDay();
+        validateShiftTime(newStartTime, newEndTime, newNextDay);
+
         if (name != null) shift.setName(name);
         if (startTime != null) shift.setStartTime(startTime);
         if (endTime != null) shift.setEndTime(endTime);
         if (sortOrder != null) shift.setSortOrder(sortOrder);
+        if (nextDay != null) shift.setNextDay(nextDay);
         return shiftRepository.save(shift);
     }
 
@@ -146,13 +159,13 @@ public class FactoryCalendarService {
     public List<CalendarDate> getDatesByMonth(UUID calendarId, Integer year, Integer month) {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
-        return dateRepository.findByCalendarIdAndDateBetween(calendarId, start, end);
+        return dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, start, end);
     }
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
     public void updateDateType(UUID calendarId, LocalDate date, DateType dateType, String label) {
-        List<CalendarDate> existing = dateRepository.findByCalendarIdAndDateBetween(calendarId, date, date);
+        List<CalendarDate> existing = dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, date, date);
         if (existing.isEmpty()) {
             FactoryCalendar calendar = getCalendarById(calendarId);
             CalendarDate cd = new CalendarDate();
@@ -169,9 +182,11 @@ public class FactoryCalendarService {
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
     public void batchUpdateDates(UUID calendarId, List<LocalDate> dates, DateType dateType, String label) {
-        for (LocalDate date : dates) {
-            updateDateType(calendarId, date, dateType, label);
+        if (dates == null || dates.isEmpty()) {
+            return;
         }
+        // 使用批量更新，避免 N+1 查询问题
+        dateRepository.batchUpdateDateTypes(calendarId, dates, dateType, label);
     }
 
     @Transactional
@@ -180,17 +195,85 @@ public class FactoryCalendarService {
         batchUpdateDates(calendarId, dates, DateType.HOLIDAY, label);
     }
 
+    @Transactional
+    @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
+    public void applyWeekendPattern(UUID calendarId, String pattern) {
+        String normalizedPattern = pattern == null ? "" : pattern.trim().toUpperCase();
+        if (normalizedPattern.isEmpty()) {
+            throw new ResourceConflictException("单双休模式不能为空");
+        }
+
+        FactoryCalendar calendar = getCalendarById(calendarId);
+        LocalDate start = LocalDate.of(calendar.getYear(), 1, 1);
+        LocalDate end = LocalDate.of(calendar.getYear(), 12, 31);
+        List<CalendarDate> dates = dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, start, end);
+
+        for (CalendarDate calendarDate : dates) {
+            if (calendarDate.getDateType() == DateType.HOLIDAY) {
+                continue;
+            }
+
+            DateType targetDateType = isRestDayByPattern(calendarDate.getDate().getDayOfWeek(), normalizedPattern)
+                    ? DateType.RESTDAY
+                    : DateType.WORKDAY;
+
+            if (calendarDate.getDateType() != targetDateType || calendarDate.getLabel() != null) {
+                dateRepository.updateDateType(calendarId, calendarDate.getDate(), targetDateType, null);
+            }
+        }
+    }
+
     // ========== 统计 ==========
 
     @Transactional(readOnly = true)
     public long countWorkdays(UUID calendarId, Integer year, Integer month) {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
-        List<CalendarDate> dates = dateRepository.findByCalendarIdAndDateBetween(calendarId, start, end);
+        List<CalendarDate> dates = dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, start, end);
+        return dates.stream().filter(d -> d.getDateType() == DateType.WORKDAY).count();
+    }
+
+    @Transactional(readOnly = true)
+    public long countYearWorkdays(UUID calendarId, Integer year) {
+        LocalDate start = LocalDate.of(year, 1, 1);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        List<CalendarDate> dates = dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, start, end);
         return dates.stream().filter(d -> d.getDateType() == DateType.WORKDAY).count();
     }
 
     // ========== 私有方法 ==========
+
+    /**
+     * 验证班次时间设置
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @param nextDay 是否跨天
+     * @throws IllegalArgumentException 时间设置不合法时抛出
+     */
+    private void validateShiftTime(LocalTime startTime, LocalTime endTime, Boolean nextDay) {
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("开始时间和结束时间不能为空");
+        }
+
+        boolean isNextDay = nextDay != null && nextDay;
+
+        if (!isNextDay) {
+            // 非跨天班次：结束时间必须大于开始时间
+            if (endTime.isBefore(startTime) || endTime.equals(startTime)) {
+                throw new IllegalArgumentException(
+                    String.format("非跨天班次的结束时间(%s)必须大于开始时间(%s)", endTime, startTime)
+                );
+            }
+        } else {
+            // 跨天班次：结束时间应该小于或等于开始时间（表示次日）
+            // 允许相等的情况（如 00:00-00:00，表示24小时班次）
+            if (endTime.isAfter(startTime)) {
+                throw new IllegalArgumentException(
+                    String.format("跨天班次的结束时间(%s)应该小于或等于开始时间(%s)", endTime, startTime)
+                );
+            }
+        }
+    }
 
     private void initCalendarDates(FactoryCalendar calendar) {
         LocalDate start = LocalDate.of(calendar.getYear(), 1, 1);
@@ -203,5 +286,15 @@ public class FactoryCalendarService {
             cd.setDateType(date.getDayOfWeek().getValue() >= 6 ? DateType.RESTDAY : DateType.WORKDAY);
             calendar.getDates().add(cd);
         }
+    }
+
+    private boolean isRestDayByPattern(DayOfWeek dayOfWeek, String pattern) {
+        if ("SINGLE".equalsIgnoreCase(pattern)) {
+            return dayOfWeek == DayOfWeek.SUNDAY;
+        }
+        if ("DOUBLE".equalsIgnoreCase(pattern)) {
+            return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
+        }
+        throw new ResourceConflictException("不支持的单双休模式: " + pattern);
     }
 }

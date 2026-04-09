@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.Hibernate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,7 +36,9 @@ public class FactoryCalendarDto {
                 .year(cal.getYear())
                 .isDefault(cal.getIsDefault())
                 .enabled(cal.getEnabled())
-                .shifts(cal.getShifts() != null ? cal.getShifts().stream().map(CalendarShiftDto::fromEntity).toList() : List.of())
+                .shifts(Hibernate.isInitialized(cal.getShifts()) && cal.getShifts() != null
+                        ? cal.getShifts().stream().map(CalendarShiftDto::fromEntity).toList()
+                        : List.of())
                 .workdayCount(workdayCount)
                 .createTime(cal.getCreateTime())
                 .updateTime(cal.getUpdateTime())

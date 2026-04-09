@@ -39,7 +39,9 @@
       "Bash(xargs kill:*)",
       "Bash(netstat -ano)",
       "Bash(ls:*)",
-      "Bash(mvnw clean:*)"
+      "Bash(mvnw clean:*)",
+      "Bash(echo \"TypeScript check completed with exit code: $?\")",
+      "Bash(echo \"Build completed with exit code: $?\")"
     ]
   }
 }
