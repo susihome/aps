@@ -358,3 +358,95 @@ interface GanttTask {
 - `GanttChart.vue` - 甘特图组件
 - `application.yml` - Spring Boot配置
 - `solverConfig.xml` - Timefold求解器配置
+
+## Spring Boot Engineer Quick Reference
+
+### MUST DO
+
+| 规则 | 正确写法 |
+|------|---------|
+| 构造器注入 | `public MyService(Dep dep) { this.dep = dep; }` |
+| 验证 API 输入 | `@Valid @RequestBody MyRequest req`（每个写操作端点） |
+| 类型安全配置绑定 | `@ConfigurationProperties(prefix = "app")` 绑定到 record/class |
+| 正确组件注解 | `@Service` 业务逻辑，`@Repository` 数据层，`@RestController` HTTP层 |
+| 事务范围 | 多步写操作加 `@Transactional`；只读查询加 `@Transactional(readOnly = true)` |
+| 隐藏内部异常 | 在 `@RestControllerAdvice` 中捕获领域异常，返回 problem details，不暴露堆栈 |
+| 外部化密钥 | 使用环境变量或 Spring Cloud Config，禁止放入 `application.properties` |
+
+### MUST NOT DO
+
+- 使用字段注入（`@Autowired` 加在字段上）
+- 跳过 API 端点的输入验证
+- 在应使用 `@Service`/`@Repository`/`@Controller` 时用 `@Component`
+- 在响应式链中混用阻塞代码（如 WebFlux 链中调用 `.block()`）
+- 在配置文件中存储 Secret 或凭证
+- 硬编码 URL、凭证或环境相关值
+- 使用 Spring Boot 2.x 废弃模式（如 `WebSecurityConfigurerAdapter`）
+
+### Minimal Working Structure（最小完整示例）
+
+```java
+// Entity
+@Entity @Table(name = "...")
+public class MyEntity {
+    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+    // fields...
+}
+
+// Service（构造器注入）
+@Service
+public class MyService {
+    private final MyRepository repo;
+    public MyService(MyRepository repo) { this.repo = repo; }
+
+    @Transactional(readOnly = true)
+    public List<MyEntity> findAll() { return repo.findAll(); }
+
+    @Transactional
+    public MyEntity create(MyRequest req) { ... }
+}
+
+// Controller
+@RestController @RequestMapping("/api/v1/...") @Validated
+public class MyController {
+    private final MyService service;
+    public MyController(MyService service) { this.service = service; }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public MyResponse create(@Valid @RequestBody MyRequest req) {
+        return service.create(req);
+    }
+}
+```
+
+## Vue 3 Best Practices Quick Reference
+
+### 组件拆分触发条件（满足任意一条即需拆分）
+
+1. 组件同时承担数据编排/状态管理 + 多个独立 UI 区块
+2. 模板中有 3+ 个独立 UI 区块（表单、筛选、列表、操作栏等）
+3. 某个模板块被重复使用或可复用
+
+### 路由视图组件（View）规则
+
+- 保持 View 组件轻量：只做 app shell/layout、provider wiring 和 feature composition
+- CRUD/列表功能至少拆分为：容器组件、表单组件、列表/项目组件、操作栏/状态组件
+
+### Composable 规则
+
+- 逻辑被复用、有状态、或有副作用时提取为 composable
+- composable API 保持小巧、有类型、可预期
+- 职责：feature logic 放 composable，UI 展示放 component
+
+### 自查 Checklist（提交前）
+
+- [ ] 核心功能已实现且符合需求
+- [ ] 使用了 Composition API + `<script setup lang="ts">`
+- [ ] reactivity 模型最小化（`ref`/`reactive` + `computed` 派生）
+- [ ] SFC 结构和模板规则已遵循
+- [ ] 组件职责单一，已按规则拆分
+- [ ] 数据流契约显式声明（`defineProps`、`defineEmits` 带类型）
+- [ ] 复用/复杂逻辑已提取为 composable
+- [ ] 性能优化在功能完成后才做

@@ -1,11 +1,6 @@
 import axiosInstance from './axios'
+import type { AjaxResult } from './types'
 import type { User } from '../types/auth'
-
-interface AjaxResult<T> {
-  code: number
-  message: string
-  data: T | null
-}
 
 export interface CreateUserRequest {
   username: string

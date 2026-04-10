@@ -1,4 +1,5 @@
 import axiosInstance from './axios'
+import type { AjaxResult } from './types'
 
 export interface Permission {
   id: string
@@ -29,12 +30,6 @@ export interface PermissionForm {
 }
 
 const API_BASE = '/permissions'
-
-interface AjaxResult<T> {
-  code: number
-  message: string
-  data: T | null
-}
 
 interface RawPermission {
   id: string

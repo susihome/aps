@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { orderApi } from '../api'
+import { orderApi } from '../api/order'
 import type { Order } from '../api/order'
 import { useAuthStore } from '../stores/auth'
-import { ElMessage } from 'element-plus'
+import { msgSuccess, msgError } from '@/utils/message'
 
 const authStore = useAuthStore()
 
@@ -32,7 +32,7 @@ async function loadOrders() {
     orders.value = await orderApi.list()
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : '加载工单列表失败'
-    ElMessage.error(message)
+    msgError(message)
   }
 }
 
@@ -47,12 +47,12 @@ async function submitForm() {
       priority: form.value.priority!,
       dueDate: form.value.dueDate!
     })
-    ElMessage.success('工单创建成功')
+    msgSuccess('工单创建成功')
     dialogVisible.value = false
     loadOrders()
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : '创建工单失败'
-    ElMessage.error(message)
+    msgError(message)
   } finally {
     loading.value = false
   }

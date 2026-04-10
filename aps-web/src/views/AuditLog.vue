@@ -89,20 +89,12 @@
               style="width: 180px"
             >
               <el-option label="全部" value="" />
-              <el-option label="登录" value="LOGIN" />
-              <el-option label="登出" value="LOGOUT" />
-              <el-option label="创建排产" value="SCHEDULE_CREATE" />
-              <el-option label="修改排产" value="SCHEDULE_UPDATE" />
-              <el-option label="启动求解" value="SCHEDULE_SOLVE" />
-              <el-option label="停止求解" value="SCHEDULE_STOP" />
-              <el-option label="创建工单" value="ORDER_CREATE" />
-              <el-option label="修改工单" value="ORDER_UPDATE" />
-              <el-option label="删除工单" value="ORDER_DELETE" />
-              <el-option label="创建用户" value="USER_CREATE" />
-              <el-option label="修改用户" value="USER_UPDATE" />
-              <el-option label="删除用户" value="USER_DELETE" />
-              <el-option label="分配角色" value="ROLE_ASSIGN" />
-              <el-option label="移除角色" value="ROLE_REMOVE" />
+              <el-option
+                v-for="item in auditActionItems"
+                :key="item.itemCode"
+                :label="item.itemName"
+                :value="item.itemCode"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="资源类型">
@@ -190,9 +182,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { msgSuccess, msgError } from '@/utils/message'
 import { Search, Refresh, Download, Document, User, Operation } from '@element-plus/icons-vue'
 import { searchAuditLogs, exportAuditLogs, getStatistics, type AuditLog } from '@/api/audit'
+import { dictionaryApi, type DictItem } from '@/api/dictionary'
 import * as echarts from 'echarts'
 
 const searchForm = reactive({
@@ -213,6 +206,8 @@ const loading = ref(false)
 const totalLogs = ref(0)
 const activeUsers = ref(0)
 const totalActions = ref(0)
+const auditActionItems = ref<DictItem[]>([])
+const auditActionLabelMap = ref<Record<string, string>>({})
 
 const actionChartRef = ref<HTMLElement>()
 const userChartRef = ref<HTMLElement>()
@@ -242,7 +237,7 @@ const loadAuditLogs = async () => {
       totalLogs.value = response.data.data.totalElements
     }
   } catch (error) {
-    ElMessage.error('加载审计日志失败')
+    msgError('加载审计日志失败')
   } finally {
     loading.value = false
   }
@@ -355,9 +350,9 @@ const handleExport = async () => {
     link.download = `audit_logs_${new Date().getTime()}.csv`
     link.click()
     window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    msgSuccess('导出成功')
   } catch (error) {
-    ElMessage.error('导出失败')
+    msgError('导出失败')
   }
 }
 
@@ -406,22 +401,26 @@ const getActionTagType = (action: string) => {
 }
 
 const getActionLabel = (action: string) => {
-  const labelMap: Record<string, string> = {
-    LOGIN: '登录', LOGOUT: '登出',
-    SCHEDULE_CREATE: '创建排产', SCHEDULE_UPDATE: '修改排产', SCHEDULE_DELETE: '删除排产',
-    SCHEDULE_SOLVE: '启动求解', SCHEDULE_STOP: '停止求解',
-    ORDER_CREATE: '创建工单', ORDER_UPDATE: '修改工单', ORDER_DELETE: '删除工单',
-    USER_CREATE: '创建用户', USER_UPDATE: '修改用户', USER_DELETE: '删除用户',
-    ROLE_ASSIGN: '分配角色', ROLE_REMOVE: '移除角色'
-  }
-  return labelMap[action] || action
+  return auditActionLabelMap.value[action] || action
 }
 
 onMounted(() => {
   loadAuditLogs()
   loadStatistics()
+  loadAuditActionDict()
   window.addEventListener('resize', handleResize)
 })
+
+async function loadAuditActionDict() {
+  try {
+    auditActionItems.value = await dictionaryApi.getEnabledItemsByTypeCode('AUDIT_ACTION')
+    auditActionLabelMap.value = Object.fromEntries(
+      auditActionItems.value.map(item => [item.itemCode, item.itemName])
+    )
+  } catch {
+    auditActionItems.value = []
+  }
+}
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)

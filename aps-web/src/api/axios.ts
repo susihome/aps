@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { msgError } from '@/utils/message'
 
 const axiosInstance = axios.create({
   baseURL: '/api',
@@ -19,11 +19,11 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器：统一错误处理和令牌刷新
 let isRefreshing = false
 let failedQueue: Array<{
-  resolve: (value?: any) => void
-  reject: (reason?: any) => void
+  resolve: (value?: unknown) => void
+  reject: (reason?: unknown) => void
 }> = []
 
-const processQueue = (error: any = null) => {
+const processQueue = (error: unknown = null) => {
   failedQueue.forEach((promise) => {
     if (error) {
       promise.reject(error)
@@ -85,18 +85,18 @@ axiosInstance.interceptors.response.use(
     // 403 错误
     if (error.response?.status === 403) {
       if (!isSilentAuthRequest(originalRequest?.url)) {
-        ElMessage.error('无权限访问')
+        msgError('无权限访问')
       }
     }
 
     // 500 错误
     if (error.response?.status === 500) {
-      ElMessage.error('服务器错误，请稍后重试')
+      msgError('服务器错误，请稍后重试')
     }
 
     // 网络错误
     if (!error.response) {
-      ElMessage.error('网络连接失败，请检查网络')
+      msgError('网络连接失败，请检查网络')
     }
 
     return Promise.reject(error)

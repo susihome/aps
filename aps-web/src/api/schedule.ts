@@ -1,10 +1,5 @@
 import axiosInstance from './axios'
-
-interface AjaxResult<T> {
-  code: number
-  message: string
-  data: T | null
-}
+import type { AjaxResult } from './types'
 
 export interface Schedule {
   id: string

@@ -43,29 +43,10 @@ export interface AuditStatistics {
 }
 
 /**
- * 分页查询审计日志
- */
-export function getAuditLogs(params: {
-  page?: number
-  size?: number
-  sortBy?: string
-  sortDirection?: string
-}) {
-  return axios.get<AjaxResult<PageResponse<AuditLog>>>('/audit-logs', { params })
-}
-
-/**
  * 多条件搜索审计日志
  */
 export function searchAuditLogs(params: AuditLogSearchParams) {
   return axios.get<AjaxResult<PageResponse<AuditLog>>>('/audit-logs/search', { params })
-}
-
-/**
- * 查询单条审计日志详情
- */
-export function getAuditLogById(id: string) {
-  return axios.get<AjaxResult<AuditLog>>(`/audit-logs/${id}`)
 }
 
 /**

@@ -13,10 +13,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -27,12 +28,13 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/factory-calendars")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@Validated
 public class FactoryCalendarController {
 
     private final FactoryCalendarService calendarService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:list')")
     public AjaxResult<List<FactoryCalendarDto>> getAllCalendars(
             @RequestParam(required = false) Integer year
     ) {
@@ -47,12 +49,14 @@ public class FactoryCalendarController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:query')")
     public AjaxResult<FactoryCalendarDto> getCalendar(@PathVariable UUID id) {
         FactoryCalendar cal = calendarService.getCalendarById(id);
         return AjaxResult.success(FactoryCalendarDto.fromEntity(cal));
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:add')")
     public AjaxResult<FactoryCalendarDto> createCalendar(@Valid @RequestBody CreateCalendarRequest request) {
         FactoryCalendar cal = calendarService.createCalendar(
                 request.name(), request.code(), request.year(), request.description());
@@ -60,6 +64,7 @@ public class FactoryCalendarController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<FactoryCalendarDto> updateCalendar(@PathVariable UUID id,
                                                           @Valid @RequestBody UpdateCalendarRequest request) {
         FactoryCalendar cal = calendarService.updateCalendar(
@@ -68,12 +73,14 @@ public class FactoryCalendarController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:remove')")
     public AjaxResult<Void> deleteCalendar(@PathVariable UUID id) {
         calendarService.deleteCalendar(id);
         return AjaxResult.success(null);
     }
 
     @PutMapping("/{id}/default")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<Void> setDefault(@PathVariable UUID id) {
         calendarService.setDefaultCalendar(id);
         return AjaxResult.success(null);
@@ -82,48 +89,54 @@ public class FactoryCalendarController {
     // ===== 班次 =====
 
     @GetMapping("/{id}/shifts")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:query')")
     public AjaxResult<List<CalendarShiftDto>> getShifts(@PathVariable UUID id) {
         List<CalendarShift> shifts = calendarService.getShifts(id);
         return AjaxResult.success(shifts.stream().map(CalendarShiftDto::fromEntity).toList());
     }
 
     @PostMapping("/{id}/shifts")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<CalendarShiftDto> addShift(@PathVariable UUID id,
                                                   @Valid @RequestBody ShiftRequest request) {
         CalendarShift shift = calendarService.addShift(
-                id, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.nextDay());
+                id, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.breakMinutes(), request.nextDay());
         return AjaxResult.success(CalendarShiftDto.fromEntity(shift));
     }
 
     @PutMapping("/{id}/shifts/{shiftId}")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<CalendarShiftDto> updateShift(@PathVariable UUID id,
                                                      @PathVariable UUID shiftId,
                                                      @Valid @RequestBody ShiftRequest request) {
         CalendarShift shift = calendarService.updateShift(
-                shiftId, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.nextDay());
+                id, shiftId, request.name(), request.startTime(), request.endTime(), request.sortOrder(), request.breakMinutes(), request.nextDay());
         return AjaxResult.success(CalendarShiftDto.fromEntity(shift));
     }
 
     @DeleteMapping("/{id}/shifts/{shiftId}")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:remove')")
     public AjaxResult<Void> deleteShift(@PathVariable UUID id,
                                          @PathVariable UUID shiftId) {
-        calendarService.deleteShift(shiftId);
+        calendarService.deleteShift(id, shiftId);
         return AjaxResult.success(null);
     }
 
     // ===== 日期 =====
 
     @GetMapping("/{id}/dates")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:query')")
     public AjaxResult<List<CalendarDateDto>> getDatesByMonth(
             @PathVariable UUID id,
-            @RequestParam Integer year,
-            @RequestParam Integer month
+            @RequestParam @Min(value = 2020, message = "年份不能早于2020年") @Max(value = 2099, message = "年份不能晚于2099年") Integer year,
+            @RequestParam @Min(value = 1, message = "月份不能小于1") @Max(value = 12, message = "月份不能大于12") Integer month
     ) {
         List<CalendarDate> dates = calendarService.getDatesByMonth(id, year, month);
         return AjaxResult.success(dates.stream().map(CalendarDateDto::fromEntity).toList());
     }
 
     @PutMapping("/{id}/dates")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<Void> updateDateType(@PathVariable UUID id,
                                             @Valid @RequestBody UpdateDateRequest request) {
         calendarService.updateDateType(id, request.date(), request.dateType(), request.label());
@@ -131,6 +144,7 @@ public class FactoryCalendarController {
     }
 
     @PostMapping("/{id}/dates/holidays")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<Void> batchSetHolidays(@PathVariable UUID id,
                                               @Valid @RequestBody BatchDateRequest request) {
         calendarService.batchSetHolidays(id, request.dates(), request.label());
@@ -138,6 +152,7 @@ public class FactoryCalendarController {
     }
 
     @PutMapping("/{id}/dates/batch")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<Void> batchUpdateDates(@PathVariable UUID id,
                                                @Valid @RequestBody BatchUpdateDateRequest request) {
         calendarService.batchUpdateDates(id, request.dates(), request.dateType(), request.label());
@@ -145,6 +160,7 @@ public class FactoryCalendarController {
     }
 
     @PutMapping("/{id}/dates/weekend-pattern")
+    @PreAuthorize("hasAuthority('basedata:factory-calendar:edit')")
     public AjaxResult<Void> applyWeekendPattern(@PathVariable UUID id,
                                                 @Valid @RequestBody WeekendPatternRequest request) {
         calendarService.applyWeekendPattern(id, request.pattern());
@@ -178,6 +194,8 @@ public class FactoryCalendarController {
             LocalTime endTime,
             @Min(value = 0, message = "排序值不能为负数")
             Integer sortOrder,
+            @Min(value = 0, message = "休息时长不能为负数")
+            Integer breakMinutes,
             @NotNull(message = "是否跨天不能为空")
             Boolean nextDay) {}
 
@@ -189,13 +207,13 @@ public class FactoryCalendarController {
             String label) {}
 
     public record BatchDateRequest(
-            @NotNull(message = "日期列表不能为空")
-            List<LocalDate> dates,
+            @NotEmpty(message = "日期列表不能为空")
+            List<@NotNull(message = "日期不能为空") LocalDate> dates,
             String label) {}
 
     public record BatchUpdateDateRequest(
-            @NotNull(message = "日期列表不能为空")
-            List<LocalDate> dates,
+            @NotEmpty(message = "日期列表不能为空")
+            List<@NotNull(message = "日期不能为空") LocalDate> dates,
             @NotNull(message = "日期类型不能为空")
             DateType dateType,
             String label) {}

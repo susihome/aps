@@ -101,9 +101,9 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { msgSuccess, msgError, msgInfo } from '@/utils/message'
 import { Plus, Edit, Delete, Key } from '@element-plus/icons-vue'
-import { userApi } from '../api'
+import { userApi } from '../api/user'
 import type { User } from '../types/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
@@ -147,7 +147,7 @@ async function loadUsers() {
   try {
     users.value = await userApi.list()
   } catch (error) {
-    ElMessage.error('加载用户列表失败')
+    msgError('加载用户列表失败')
   }
 }
 
@@ -161,15 +161,15 @@ function showCreateDialog() {
 }
 
 function handleEdit(_user: User) {
-  ElMessage.info('编辑用户功能待接入后端接口')
+  msgInfo('编辑用户功能待接入后端接口')
 }
 
 function handleDelete(_user: User) {
-  ElMessage.info('删除用户功能待接入后端接口')
+  msgInfo('删除用户功能待接入后端接口')
 }
 
 function handleResetPassword(_user: User) {
-  ElMessage.info('重置密码功能待接入后端接口')
+  msgInfo('重置密码功能待接入后端接口')
 }
 
 async function handleCreate() {
@@ -184,12 +184,12 @@ async function handleCreate() {
         ...form.value,
         roleIds: []
       })
-      ElMessage.success('用户创建成功')
+      msgSuccess('用户创建成功')
       dialogVisible.value = false
       loadUsers()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '创建用户失败'
-      ElMessage.error(message)
+      msgError(message)
     } finally {
       loading.value = false
     }

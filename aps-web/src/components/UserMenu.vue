@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { msgSuccess, confirmAction } from '@/utils/message'
 import { ArrowDown, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -43,20 +43,19 @@ const userRole = computed(() => {
     'PLANNER': '计划员',
     'SUPERVISOR': '主管'
   }
-  return roles.map(r => roleMap[r] || r).join(', ')
+  return roles.map(r => {
+    const name = typeof r === 'string' ? r : r.name
+    return roleMap[name] || name
+  }).join(', ')
 })
 
 const handleCommand = async (command: string) => {
   if (command === 'logout') {
     try {
-      await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      })
+      await confirmAction('确定要退出登录吗？')
 
       await authStore.logout()
-      ElMessage.success('已退出登录')
+      msgSuccess('已退出登录')
       router.push('/login')
     } catch (error) {
       // 用户取消

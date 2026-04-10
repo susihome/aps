@@ -109,9 +109,10 @@ public class FactoryCalendarService {
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
-    public CalendarShift addShift(UUID calendarId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Boolean nextDay) {
+    public CalendarShift addShift(UUID calendarId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Integer breakMinutes, Boolean nextDay) {
         // 验证班次时间
         validateShiftTime(startTime, endTime, nextDay);
+        validateBreakMinutes(startTime, endTime, breakMinutes, nextDay);
 
         FactoryCalendar calendar = getCalendarById(calendarId);
         CalendarShift shift = new CalendarShift();
@@ -120,43 +121,89 @@ public class FactoryCalendarService {
         shift.setStartTime(startTime);
         shift.setEndTime(endTime);
         shift.setSortOrder(sortOrder != null ? sortOrder : 0);
+        shift.setBreakMinutes(breakMinutes != null ? breakMinutes : 0);
         shift.setNextDay(nextDay != null ? nextDay : false);
         return shiftRepository.save(shift);
     }
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
-    public CalendarShift updateShift(UUID shiftId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Boolean nextDay) {
-        CalendarShift shift = shiftRepository.findById(shiftId)
-                .orElseThrow(() -> new ResourceNotFoundException("班次不存在: " + shiftId));
+    public CalendarShift updateShift(UUID calendarId, UUID shiftId, String name, LocalTime startTime, LocalTime endTime, Integer sortOrder, Integer breakMinutes, Boolean nextDay) {
+        CalendarShift shift = getShiftBelongingToCalendar(calendarId, shiftId);
 
         // 验证班次时间（如果提供了新时间）
         LocalTime newStartTime = startTime != null ? startTime : shift.getStartTime();
         LocalTime newEndTime = endTime != null ? endTime : shift.getEndTime();
         Boolean newNextDay = nextDay != null ? nextDay : shift.getNextDay();
+        Integer newBreakMinutes = breakMinutes != null ? breakMinutes : shift.getBreakMinutes();
         validateShiftTime(newStartTime, newEndTime, newNextDay);
+        validateBreakMinutes(newStartTime, newEndTime, newBreakMinutes, newNextDay);
 
         if (name != null) shift.setName(name);
         if (startTime != null) shift.setStartTime(startTime);
         if (endTime != null) shift.setEndTime(endTime);
         if (sortOrder != null) shift.setSortOrder(sortOrder);
+        if (breakMinutes != null) shift.setBreakMinutes(breakMinutes);
         if (nextDay != null) shift.setNextDay(nextDay);
         return shiftRepository.save(shift);
     }
 
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
-    public void deleteShift(UUID shiftId) {
-        if (!shiftRepository.existsById(shiftId)) {
+    public void deleteShift(UUID calendarId, UUID shiftId) {
+        getShiftBelongingToCalendar(calendarId, shiftId);
+        shiftRepository.deleteById(shiftId);
+    }
+
+    private CalendarShift getShiftBelongingToCalendar(UUID calendarId, UUID shiftId) {
+        CalendarShift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new ResourceNotFoundException("班次不存在: " + shiftId));
+        UUID shiftCalendarId = shift.getCalendar() != null ? shift.getCalendar().getId() : null;
+        if (!calendarId.equals(shiftCalendarId)) {
             throw new ResourceNotFoundException("班次不存在: " + shiftId);
         }
-        shiftRepository.deleteById(shiftId);
+        return shift;
+    }
+
+    private void validateCalendarYear(UUID calendarId, Integer year) {
+        FactoryCalendar calendar = getCalendarById(calendarId);
+        if (!calendar.getYear().equals(year)) {
+            throw new ResourceConflictException("查询年份与日历年份不一致: " + year);
+        }
+    }
+
+    private void validateDateInCalendarYear(FactoryCalendar calendar, LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("日期不能为空");
+        }
+        if (date.getYear() != calendar.getYear()) {
+            throw new ResourceConflictException("日期不属于日历年份: " + date);
+        }
+    }
+
+    private void validateBreakMinutes(LocalTime startTime, LocalTime endTime, Integer breakMinutes, Boolean nextDay) {
+        int normalizedBreakMinutes = breakMinutes != null ? breakMinutes : 0;
+        if (normalizedBreakMinutes < 0) {
+            throw new IllegalArgumentException("休息时长不能为负数");
+        }
+
+        int totalMinutes;
+        if (Boolean.TRUE.equals(nextDay)) {
+            totalMinutes = (24 * 60 - startTime.toSecondOfDay() / 60) + (endTime.toSecondOfDay() / 60);
+        } else {
+            totalMinutes = (int) java.time.Duration.between(startTime, endTime).toMinutes();
+        }
+
+        if (normalizedBreakMinutes >= totalMinutes) {
+            throw new IllegalArgumentException("休息时长必须小于班次总时长");
+        }
     }
 
     // ========== 日期管理 ==========
 
     @Transactional(readOnly = true)
     public List<CalendarDate> getDatesByMonth(UUID calendarId, Integer year, Integer month) {
+        validateCalendarYear(calendarId, year);
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
         return dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, start, end);
@@ -165,9 +212,10 @@ public class FactoryCalendarService {
     @Transactional
     @Audited(action = AuditAction.UPDATE, resource = "FactoryCalendar")
     public void updateDateType(UUID calendarId, LocalDate date, DateType dateType, String label) {
+        FactoryCalendar calendar = getCalendarById(calendarId);
+        validateDateInCalendarYear(calendar, date);
         List<CalendarDate> existing = dateRepository.findByCalendarIdAndDateBetweenOrderByDateAsc(calendarId, date, date);
         if (existing.isEmpty()) {
-            FactoryCalendar calendar = getCalendarById(calendarId);
             CalendarDate cd = new CalendarDate();
             cd.setCalendar(calendar);
             cd.setDate(date);
@@ -185,6 +233,8 @@ public class FactoryCalendarService {
         if (dates == null || dates.isEmpty()) {
             return;
         }
+        FactoryCalendar calendar = getCalendarById(calendarId);
+        dates.forEach(date -> validateDateInCalendarYear(calendar, date));
         // 使用批量更新，避免 N+1 查询问题
         dateRepository.batchUpdateDateTypes(calendarId, dates, dateType, label);
     }

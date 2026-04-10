@@ -1,4 +1,5 @@
 import axiosInstance from './axios'
+import type { AjaxResult } from './types'
 
 export interface Role {
   id: string
@@ -25,13 +26,7 @@ export interface RoleForm {
 
 const API_BASE = '/roles'
 
-interface AjaxResult<T> {
-  code: number
-  message: string
-  data: T | null
-}
-
-interface PageResult<T> {
+interface RolePageResult<T> {
   content: T[]
   totalElements: number
   totalPages: number
@@ -50,7 +45,7 @@ export const useRoleApi = () => {
   return {
     // 获取角色列表（分页）
     getRoles: async (page = 0, size = 20) => {
-      const { data } = await axiosInstance.get<AjaxResult<PageResult<Role>>>(
+      const { data } = await axiosInstance.get<AjaxResult<RolePageResult<Role>>>(
         `${API_BASE}?page=${page}&size=${size}`
       )
       return unwrap(data)
@@ -58,7 +53,7 @@ export const useRoleApi = () => {
 
     // 获取所有角色（不分页）
     getAllRoles: async () => {
-      const { data } = await axiosInstance.get<AjaxResult<PageResult<Role>>>(
+      const { data } = await axiosInstance.get<AjaxResult<RolePageResult<Role>>>(
         `${API_BASE}?page=0&size=1000`
       )
       return unwrap(data).content

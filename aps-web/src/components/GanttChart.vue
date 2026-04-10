@@ -5,7 +5,7 @@ import 'frappe-gantt/dist/frappe-gantt.css'
 import { useScheduleStore } from '../stores/schedule'
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
-import { ElMessage } from 'element-plus'
+import { msgError } from '@/utils/message'
 
 interface GanttTask {
   id: string
@@ -57,7 +57,7 @@ function initGantt() {
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '初始化甘特图失败'
-      ElMessage.error(message)
+      msgError(message)
     }
   }
 }
@@ -75,21 +75,21 @@ function connectWebSocket() {
             }
           } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'WebSocket消息解析失败'
-            ElMessage.error(errorMessage)
+            msgError(errorMessage)
           }
         })
       },
       onStompError: (frame) => {
-        ElMessage.error('WebSocket连接错误')
+        msgError('WebSocket连接错误')
       },
       onWebSocketError: () => {
-        ElMessage.error('WebSocket连接失败')
+        msgError('WebSocket连接失败')
       }
     })
     stompClient.activate()
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'WebSocket初始化失败'
-    ElMessage.error(message)
+    msgError(message)
   }
 }
 </script>

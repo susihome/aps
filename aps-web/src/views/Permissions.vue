@@ -208,9 +208,12 @@
 
         <el-form-item label="权限类型" prop="type">
           <el-select v-model="formData.type" placeholder="选择权限类型">
-            <el-option label="目录" value="catalog" />
-            <el-option label="菜单" value="menu" />
-            <el-option label="按钮" value="button" />
+            <el-option
+              v-for="item in permissionTypeItems"
+              :key="item.itemCode"
+              :label="item.itemName"
+              :value="item.itemCode.toLowerCase()"
+            />
           </el-select>
         </el-form-item>
 
@@ -279,7 +282,7 @@
 import { computed, ref, reactive, onMounted } from 'vue'
 import type { Component } from 'vue'
 import type { ElTree, FormInstance } from 'element-plus'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { msgSuccess, msgError, confirmDanger } from '@/utils/message'
 import {
   Plus,
   Search,
@@ -295,6 +298,7 @@ import {
   Lock
 } from '@element-plus/icons-vue'
 import { usePermissionApi, type Permission, type PermissionForm } from '../api/permission'
+import { dictionaryApi, type DictItem } from '@/api/dictionary'
 
 type PermissionType = 'catalog' | 'menu' | 'button'
 
@@ -321,11 +325,12 @@ const iconMap: Record<string, Component> = {
   Lock
 }
 
-const typeLabelMap: Record<PermissionType, string> = {
+const permissionTypeItems = ref<DictItem[]>([])
+const typeLabelMap = ref<Record<string, string>>({
   catalog: '目录',
   menu: '菜单',
   button: '按钮'
-}
+})
 
 const tagTypeMap: Record<PermissionType, 'info' | 'primary' | 'success'> = {
   catalog: 'info',
@@ -366,7 +371,7 @@ const treeProps = {
 }
 
 function getTypeLabel(type: PermissionType): string {
-  return typeLabelMap[type]
+  return typeLabelMap.value[type] ?? type
 }
 
 function getTagType(type: PermissionType): 'info' | 'primary' | 'success' {
@@ -416,7 +421,7 @@ async function loadPermissions() {
   } catch (error: any) {
     // 显示详细的错误信息
     const message = error.response?.data?.message || error.message || '加载权限失败'
-    ElMessage.error(message)
+    msgError(message)
     console.error('权限加载错误:', error)
   } finally {
     loading.value = false
@@ -500,15 +505,15 @@ async function handleSubmit() {
     try {
       if (isEditMode.value && selectedPermission.value) {
         await permissionApi.updatePermission(selectedPermission.value.id, formData)
-        ElMessage.success('权限更新成功')
+        msgSuccess('权限更新成功')
       } else {
         await permissionApi.createPermission(formData)
-        ElMessage.success('权限创建成功')
+        msgSuccess('权限创建成功')
       }
       dialogVisible.value = false
       await loadPermissions()
     } catch (error) {
-      ElMessage.error(isEditMode.value ? '权限更新失败' : '权限创建失败')
+      msgError(isEditMode.value ? '权限更新失败' : '权限创建失败')
     } finally {
       submitLoading.value = false
     }
@@ -521,10 +526,10 @@ async function handleTogglePermission(enabled: boolean) {
   toggleLoading.value = true
   try {
     await permissionApi.togglePermission(selectedPermission.value.id, enabled)
-    ElMessage.success(enabled ? '权限已启用' : '权限已停用')
+    msgSuccess(enabled ? '权限已启用' : '权限已停用')
     await loadPermissions()
   } catch (error) {
-    ElMessage.error('状态更新失败')
+    msgError('状态更新失败')
   } finally {
     toggleLoading.value = false
   }
@@ -532,22 +537,18 @@ async function handleTogglePermission(enabled: boolean) {
 
 async function handleDeletePermission(id: string) {
   try {
-    await ElMessageBox.confirm('确定删除该权限吗？删除后无法恢复。', '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await confirmDanger('确定删除该权限吗？删除后无法恢复。')
 
     await permissionApi.deletePermission(id)
-    ElMessage.success('权限删除成功')
+    msgSuccess('权限删除成功')
     if (selectedPermissionId.value === id) {
       selectedPermissionId.value = ''
     }
     await loadPermissions()
   } catch (error: any) {
-    // ElMessageBox 取消时抛出 'cancel' 字符串
+    // 确认框取消时抛出 'cancel' 字符串
     if (error !== 'cancel') {
-      ElMessage.error('权限删除失败')
+      msgError('权限删除失败')
     }
   }
 }
@@ -557,10 +558,10 @@ async function handleNodeDrop(draggingNode: any, dropNode: any, dropType: string
     const updates = collectSortUpdates(permissionTree.value)
     if (updates.length > 0) {
       await permissionApi.updateSort(updates)
-      ElMessage.success('排序已更新')
+      msgSuccess('排序已更新')
     }
   } catch (error) {
-    ElMessage.error('排序更新失败')
+    msgError('排序更新失败')
     await loadPermissions()
   }
 }
@@ -579,8 +580,22 @@ function collectSortUpdates(nodes: Permission[], sort = 0): Array<{ id: string; 
   return updates
 }
 
+async function loadPermissionTypeDict() {
+  try {
+    permissionTypeItems.value = await dictionaryApi.getEnabledItemsByTypeCode('PERMISSION_TYPE')
+    if (permissionTypeItems.value.length > 0) {
+      typeLabelMap.value = Object.fromEntries(
+        permissionTypeItems.value.map(item => [item.itemCode.toLowerCase(), item.itemName])
+      )
+    }
+  } catch {
+    permissionTypeItems.value = []
+  }
+}
+
 onMounted(() => {
   loadPermissions()
+  loadPermissionTypeDict()
 })
 </script>
 

@@ -3,6 +3,7 @@ package com.aps.api.exception;
 import com.aps.api.dto.AjaxResult;
 import com.aps.service.exception.BusinessException;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
@@ -36,9 +38,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(AjaxResult.error(400, exception.getMessage()));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<AjaxResult<Void>> handleIllegalArgumentException(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(AjaxResult.error(400, "请求参数格式不正确"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AjaxResult<Void>> handleException(Exception exception) {
+        log.error("Unhandled server exception", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AjaxResult.error(500, exception.getMessage() == null ? "系统内部错误" : exception.getMessage()));
+                .body(AjaxResult.error(500, "系统内部错误"));
     }
 }

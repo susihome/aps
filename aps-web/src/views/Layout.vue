@@ -161,7 +161,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type Component, markRaw }
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, Document, Calendar, User, UserFilled, Expand, Fold,
-  Search, Close, ArrowDown, Setting, SetUp, Cpu, Lock
+  Search, Close, ArrowDown, Setting, SetUp, Cpu, Lock, Collection
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { useTagsStore } from '../stores/tags'
@@ -187,6 +187,7 @@ const iconMap: Record<string, Component> = {
   Setting: markRaw(Setting),
   SetUp: markRaw(SetUp),
   Cpu: markRaw(Cpu),
+  Collection: markRaw(Collection),
 }
 
 // 菜单项接口
@@ -195,6 +196,7 @@ interface MenuItem {
   title: string
   icon: string
   roles?: string[]
+  permissions?: string[]
 }
 
 interface MenuGroup {
@@ -219,14 +221,16 @@ const allMenuItems = computed(() => {
       group: (r.meta!.group as string) || '',
       groupIcon: (r.meta!.groupIcon as string) || '',
       roles: (r.meta!.roles as string[]) || [],
+      permissions: (r.meta!.permissions as string[]) || [],
     }))
 })
 
 // 根据权限过滤菜单项
 const accessibleMenuItems = computed(() => {
   return allMenuItems.value.filter(item => {
-    if (!item.roles || item.roles.length === 0) return true
-    return item.roles.some(role => authStore.hasRole(role))
+    const roleAllowed = !item.roles || item.roles.length === 0 || item.roles.some(role => authStore.hasRole(role))
+    const permissionAllowed = !item.permissions || item.permissions.length === 0 || item.permissions.some(permission => authStore.hasPermission(permission))
+    return roleAllowed && permissionAllowed
   })
 })
 
@@ -262,7 +266,8 @@ const filteredGroupedMenus = computed(() => {
         path: item.path,
         title: item.title,
         icon: item.icon,
-        roles: item.roles
+        roles: item.roles,
+        permissions: item.permissions
       })
     })
   return Object.values(groups)

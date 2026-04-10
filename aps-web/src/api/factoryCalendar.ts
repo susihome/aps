@@ -1,4 +1,5 @@
 import axiosInstance from './axios'
+import type { AjaxResult } from './types'
 
 export interface FactoryCalendar {
   id: string
@@ -20,6 +21,7 @@ export interface CalendarShift {
   startTime: string
   endTime: string
   sortOrder: number
+  breakMinutes: number
   nextDay: boolean
 }
 
@@ -28,12 +30,6 @@ export interface CalendarDate {
   date: string
   dateType: 'WORKDAY' | 'RESTDAY' | 'HOLIDAY'
   label: string
-}
-
-interface AjaxResult<T> {
-  code: number
-  message: string
-  data: T | null
 }
 
 function unwrap<T>(result: AjaxResult<T>): T {
@@ -81,12 +77,12 @@ export const factoryCalendarApi = {
     return unwrap(data)
   },
 
-  addShift: async (calendarId: string, form: { name: string; startTime: string; endTime: string; sortOrder?: number; nextDay?: boolean }) => {
+  addShift: async (calendarId: string, form: { name: string; startTime: string; endTime: string; sortOrder?: number; breakMinutes?: number; nextDay?: boolean }) => {
     const { data } = await axiosInstance.post<AjaxResult<CalendarShift>>(`/factory-calendars/${calendarId}/shifts`, form)
     return unwrap(data)
   },
 
-  updateShift: async (calendarId: string, shiftId: string, form: { name?: string; startTime?: string; endTime?: string; sortOrder?: number; nextDay?: boolean }) => {
+  updateShift: async (calendarId: string, shiftId: string, form: { name?: string; startTime?: string; endTime?: string; sortOrder?: number; breakMinutes?: number; nextDay?: boolean }) => {
     const { data } = await axiosInstance.put<AjaxResult<CalendarShift>>(`/factory-calendars/${calendarId}/shifts/${shiftId}`, form)
     return unwrap(data)
   },

@@ -62,10 +62,28 @@ const router = createRouter({
           meta: { requiresAuth: true, roles: ['ADMIN'], title: '审计日志', icon: 'Document', group: '系统管理', groupIcon: 'Setting' }
         },
         {
+          path: 'dictionary',
+          name: 'Dictionary',
+          component: () => import('../views/Dictionary.vue'),
+          meta: { requiresAuth: true, title: '编码管理', icon: 'Collection', group: '系统管理', groupIcon: 'Setting' }
+        },
+        {
           path: 'factory-calendar',
           name: 'FactoryCalendar',
           component: () => import('../views/FactoryCalendar.vue'),
-          meta: { requiresAuth: true, roles: ['ADMIN'], title: '工厂日历', icon: 'Calendar', group: '系统管理', groupIcon: 'Setting' }
+          meta: { requiresAuth: true, title: '工厂日历', icon: 'Calendar', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:factory-calendar:list'] }
+        },
+        {
+          path: 'workshop',
+          name: 'WorkshopManagement',
+          component: () => import('../views/WorkshopManagement.vue'),
+          meta: { requiresAuth: true, roles: ['ADMIN'], title: '工厂建模', icon: 'Setting', group: '基础数据', groupIcon: 'Setting' }
+        },
+        {
+          path: 'resource-capacity',
+          name: 'ResourceCapacity',
+          component: () => import('../views/ResourceCapacity.vue'),
+          meta: { requiresAuth: true, title: '设备日产能', icon: 'Cpu', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:resource-capacity:list'] }
         }
       ]
     }
@@ -103,6 +121,14 @@ router.beforeEach(async (to, from, next) => {
       const hasRequiredRole = to.meta.roles.some(role => authStore.hasRole(role))
       if (!hasRequiredRole) {
         // 没有权限，跳转到首页
+        next({ name: 'Dashboard' })
+        return
+      }
+    }
+
+    if (to.meta.permissions && Array.isArray(to.meta.permissions)) {
+      const hasRequiredPermission = to.meta.permissions.some(permission => authStore.hasPermission(permission))
+      if (!hasRequiredPermission) {
         next({ name: 'Dashboard' })
         return
       }

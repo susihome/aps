@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { msgSuccess, msgError } from '@/utils/message'
 import { User, Lock, Calendar, Document, Setting, DataLine } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -137,7 +137,7 @@ const handleLogin = async () => {
         password: form.password
       })
 
-      ElMessage.success('登录成功')
+      msgSuccess('登录成功')
 
       const redirect = route.query.redirect as string
       router.push(redirect || '/dashboard')
@@ -148,7 +148,7 @@ const handleLogin = async () => {
       }, 500)
 
       const message = error instanceof Error ? error.message : '登录失败，请检查用户名和密码'
-      ElMessage.error(message)
+      msgError(message)
     } finally {
       loading.value = false
     }

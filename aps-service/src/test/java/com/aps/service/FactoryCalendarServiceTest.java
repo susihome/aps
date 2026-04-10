@@ -46,6 +46,8 @@ class FactoryCalendarServiceTest {
     private FactoryCalendar testCalendar;
     private UUID calendarId;
     private UUID shiftId;
+    private FactoryCalendar anotherCalendar;
+    private UUID anotherCalendarId;
 
     @BeforeEach
     void setUp() {
@@ -59,6 +61,15 @@ class FactoryCalendarServiceTest {
         testCalendar.setYear(2024);
         testCalendar.setIsDefault(false);
         testCalendar.setEnabled(true);
+
+        anotherCalendarId = UUID.randomUUID();
+        anotherCalendar = new FactoryCalendar();
+        anotherCalendar.setId(anotherCalendarId);
+        anotherCalendar.setName("另一个日历");
+        anotherCalendar.setCode("OTHER-2024");
+        anotherCalendar.setYear(2024);
+        anotherCalendar.setIsDefault(false);
+        anotherCalendar.setEnabled(true);
     }
 
     @Nested
@@ -74,13 +85,14 @@ class FactoryCalendarServiceTest {
 
             // When
             CalendarShift result = calendarService.addShift(
-                calendarId, "早班", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, false
+                calendarId, "早班", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, 30, false
             );
 
             // Then
             assertThat(result.getName()).isEqualTo("早班");
             assertThat(result.getStartTime()).isEqualTo(LocalTime.of(8, 0));
             assertThat(result.getEndTime()).isEqualTo(LocalTime.of(16, 0));
+            assertThat(result.getBreakMinutes()).isEqualTo(30);
             assertThat(result.getNextDay()).isFalse();
         }
 
@@ -89,7 +101,7 @@ class FactoryCalendarServiceTest {
         void addShift_NonCrossDayShiftWithSameTime_ShouldThrowException() {
             // When & Then - 验证在 findById 之前执行，不需要 stub
             assertThatThrownBy(() ->
-                calendarService.addShift(calendarId, "测试班次", LocalTime.of(8, 0), LocalTime.of(8, 0), 1, false)
+                calendarService.addShift(calendarId, "测试班次", LocalTime.of(8, 0), LocalTime.of(8, 0), 1, 0, false)
             )
                 .isInstanceOf(IllegalArgumentException.class)
                 .satisfies(e -> assertThat(e.getMessage()).contains("结束时间").contains("开始时间"));
@@ -100,7 +112,7 @@ class FactoryCalendarServiceTest {
         void addShift_NonCrossDayShiftWithEndTimeBeforeStartTime_ShouldThrowException() {
             // When & Then - 验证在 findById 之前执行，不需要 stub
             assertThatThrownBy(() ->
-                calendarService.addShift(calendarId, "测试班次", LocalTime.of(16, 0), LocalTime.of(8, 0), 1, false)
+                calendarService.addShift(calendarId, "测试班次", LocalTime.of(16, 0), LocalTime.of(8, 0), 1, 0, false)
             )
                 .isInstanceOf(IllegalArgumentException.class)
                 .satisfies(e -> assertThat(e.getMessage()).contains("结束时间").contains("开始时间"));
@@ -115,13 +127,14 @@ class FactoryCalendarServiceTest {
 
             // When
             CalendarShift result = calendarService.addShift(
-                calendarId, "夜班", LocalTime.of(20, 0), LocalTime.of(8, 0), 2, true
+                calendarId, "夜班", LocalTime.of(20, 0), LocalTime.of(8, 0), 2, 60, true
             );
 
             // Then
             assertThat(result.getName()).isEqualTo("夜班");
             assertThat(result.getStartTime()).isEqualTo(LocalTime.of(20, 0));
             assertThat(result.getEndTime()).isEqualTo(LocalTime.of(8, 0));
+            assertThat(result.getBreakMinutes()).isEqualTo(60);
             assertThat(result.getNextDay()).isTrue();
         }
 
@@ -130,7 +143,7 @@ class FactoryCalendarServiceTest {
         void addShift_CrossDayShiftWithEndTimeAfterStartTime_ShouldThrowException() {
             // When & Then - 验证在 findById 之前执行，不需要 stub
             assertThatThrownBy(() ->
-                calendarService.addShift(calendarId, "测试班次", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, true)
+                calendarService.addShift(calendarId, "测试班次", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, 0, true)
             )
                 .isInstanceOf(IllegalArgumentException.class)
                 .satisfies(e -> assertThat(e.getMessage()).contains("跨天班次"));
@@ -141,10 +154,41 @@ class FactoryCalendarServiceTest {
         void addShift_WithNullTime_ShouldThrowException() {
             // When & Then
             assertThatThrownBy(() ->
-                calendarService.addShift(calendarId, "测试班次", null, LocalTime.of(16, 0), 1, false)
+                calendarService.addShift(calendarId, "测试班次", null, LocalTime.of(16, 0), 1, 0, false)
             )
                 .isInstanceOf(IllegalArgumentException.class)
                 .satisfies(e -> assertThat(e.getMessage()).contains("时间"));
+        }
+
+        @Test
+        @DisplayName("休息时长不能大于等于班次总时长")
+        void addShift_WithBreakMinutesTooLarge_ShouldThrowException() {
+            assertThatThrownBy(() ->
+                calendarService.addShift(calendarId, "测试班次", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, 480, false)
+            )
+                .isInstanceOf(IllegalArgumentException.class)
+                .satisfies(e -> assertThat(e.getMessage()).contains("休息时长"));
+        }
+
+        @Test
+        @DisplayName("更新班次 - 班次不属于当前日历时应该抛出异常")
+        void updateShift_WhenShiftBelongsToAnotherCalendar_ShouldThrowException() {
+            CalendarShift existingShift = new CalendarShift();
+            existingShift.setId(shiftId);
+            existingShift.setCalendar(anotherCalendar);
+            existingShift.setName("早班");
+            existingShift.setStartTime(LocalTime.of(8, 0));
+            existingShift.setEndTime(LocalTime.of(16, 0));
+            existingShift.setBreakMinutes(0);
+            existingShift.setNextDay(false);
+
+            when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existingShift));
+
+            assertThatThrownBy(() ->
+                calendarService.updateShift(calendarId, shiftId, "早班", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, 0, false)
+            )
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("班次不存在");
         }
 
         @Test
@@ -153,19 +197,120 @@ class FactoryCalendarServiceTest {
             // Given
             CalendarShift existingShift = new CalendarShift();
             existingShift.setId(shiftId);
+            existingShift.setCalendar(testCalendar);
             existingShift.setName("早班");
             existingShift.setStartTime(LocalTime.of(8, 0));
             existingShift.setEndTime(LocalTime.of(16, 0));
+            existingShift.setBreakMinutes(0);
             existingShift.setNextDay(false);
 
             when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existingShift));
 
             // When & Then - 异常在 save 之前抛出，不需要 stub save
             assertThatThrownBy(() ->
-                calendarService.updateShift(shiftId, "早班", LocalTime.of(16, 0), LocalTime.of(8, 0), null, false)
+                calendarService.updateShift(calendarId, shiftId, "早班", LocalTime.of(16, 0), LocalTime.of(8, 0), null, null, false)
             )
                 .isInstanceOf(IllegalArgumentException.class)
                 .satisfies(e -> assertThat(e.getMessage()).contains("结束时间").contains("开始时间"));
+        }
+        @Test
+        @DisplayName("更新班次 - 班次属于当前日历时应该成功")
+        void updateShift_WhenShiftBelongsToCurrentCalendar_ShouldSucceed() {
+            CalendarShift existingShift = new CalendarShift();
+            existingShift.setId(shiftId);
+            existingShift.setCalendar(testCalendar);
+            existingShift.setName("早班");
+            existingShift.setStartTime(LocalTime.of(8, 0));
+            existingShift.setEndTime(LocalTime.of(16, 0));
+            existingShift.setBreakMinutes(0);
+            existingShift.setNextDay(false);
+
+            when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existingShift));
+            when(shiftRepository.save(any(CalendarShift.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            CalendarShift result = calendarService.updateShift(
+                calendarId, shiftId, "晚班", LocalTime.of(9, 0), LocalTime.of(17, 0), 2, 30, false
+            );
+
+            assertThat(result.getName()).isEqualTo("晚班");
+            assertThat(result.getStartTime()).isEqualTo(LocalTime.of(9, 0));
+            assertThat(result.getEndTime()).isEqualTo(LocalTime.of(17, 0));
+            assertThat(result.getSortOrder()).isEqualTo(2);
+            assertThat(result.getBreakMinutes()).isEqualTo(30);
+            verify(shiftRepository).save(existingShift);
+        }
+    }
+
+    @Nested
+    @DisplayName("班次删除测试")
+    class ShiftDeleteTests {
+
+        @Test
+        @DisplayName("删除班次 - 班次不属于当前日历时应该抛出异常")
+        void deleteShift_WhenShiftBelongsToAnotherCalendar_ShouldThrowException() {
+            CalendarShift existingShift = new CalendarShift();
+            existingShift.setId(shiftId);
+            existingShift.setCalendar(anotherCalendar);
+
+            when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existingShift));
+
+            assertThatThrownBy(() -> calendarService.deleteShift(calendarId, shiftId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("班次不存在");
+        }
+
+        @Test
+        @DisplayName("删除班次 - 班次属于当前日历时应该成功")
+        void deleteShift_WhenShiftBelongsToCurrentCalendar_ShouldSucceed() {
+            CalendarShift existingShift = new CalendarShift();
+            existingShift.setId(shiftId);
+            existingShift.setCalendar(testCalendar);
+
+            when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existingShift));
+
+            calendarService.deleteShift(calendarId, shiftId);
+
+            verify(shiftRepository).deleteById(shiftId);
+        }
+    }
+
+    @Nested
+    @DisplayName("日期年份校验测试")
+    class DateYearValidationTests {
+
+        @Test
+        @DisplayName("查询月份 - 查询年份与日历年份不一致时应抛出异常")
+        void getDatesByMonth_WhenYearMismatch_ShouldThrowException() {
+            when(calendarRepository.findById(calendarId)).thenReturn(Optional.of(testCalendar));
+
+            assertThatThrownBy(() -> calendarService.getDatesByMonth(calendarId, 2025, 1))
+                .isInstanceOf(ResourceConflictException.class)
+                .hasMessageContaining("查询年份与日历年份不一致");
+        }
+
+        @Test
+        @DisplayName("更新日期 - 日期不属于日历年份时应抛出异常")
+        void updateDateType_WhenDateOutOfCalendarYear_ShouldThrowException() {
+            when(calendarRepository.findById(calendarId)).thenReturn(Optional.of(testCalendar));
+
+            assertThatThrownBy(() -> calendarService.updateDateType(calendarId, java.time.LocalDate.of(2025, 1, 1), DateType.WORKDAY, null))
+                .isInstanceOf(ResourceConflictException.class)
+                .hasMessageContaining("日期不属于日历年份");
+        }
+
+        @Test
+        @DisplayName("批量更新日期 - 包含跨年日期时应抛出异常")
+        void batchUpdateDates_WhenDatesOutOfCalendarYear_ShouldThrowException() {
+            when(calendarRepository.findById(calendarId)).thenReturn(Optional.of(testCalendar));
+
+            assertThatThrownBy(() -> calendarService.batchUpdateDates(
+                calendarId,
+                List.of(java.time.LocalDate.of(2024, 1, 1), java.time.LocalDate.of(2025, 1, 1)),
+                DateType.HOLIDAY,
+                "测试"
+            ))
+                .isInstanceOf(ResourceConflictException.class)
+                .hasMessageContaining("日期不属于日历年份");
         }
     }
 
@@ -201,6 +346,7 @@ class FactoryCalendarServiceTest {
                 java.time.LocalDate.of(2024, 1, 1),
                 java.time.LocalDate.of(2024, 1, 2)
             );
+            when(calendarRepository.findById(calendarId)).thenReturn(Optional.of(testCalendar));
             when(dateRepository.batchUpdateDateTypes(eq(calendarId), eq(dates), eq(DateType.HOLIDAY), eq("测试")))
                 .thenReturn(2);
 
@@ -311,7 +457,7 @@ class FactoryCalendarServiceTest {
 
             // When & Then
             assertThatThrownBy(() ->
-                calendarService.updateShift(nonExistentShiftId, "测试", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, false)
+                calendarService.updateShift(calendarId, nonExistentShiftId, "测试", LocalTime.of(8, 0), LocalTime.of(16, 0), 1, 0, false)
             )
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("班次不存在");
@@ -322,10 +468,10 @@ class FactoryCalendarServiceTest {
         void deleteShift_NotFound_ShouldThrowException() {
             // Given
             UUID nonExistentShiftId = UUID.randomUUID();
-            when(shiftRepository.existsById(nonExistentShiftId)).thenReturn(false);
+            when(shiftRepository.findById(nonExistentShiftId)).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> calendarService.deleteShift(nonExistentShiftId))
+            assertThatThrownBy(() -> calendarService.deleteShift(calendarId, nonExistentShiftId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("班次不存在");
         }

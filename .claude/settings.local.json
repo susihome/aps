@@ -41,7 +41,18 @@
       "Bash(ls:*)",
       "Bash(mvnw clean:*)",
       "Bash(echo \"TypeScript check completed with exit code: $?\")",
-      "Bash(echo \"Build completed with exit code: $?\")"
+      "Bash(echo \"Build completed with exit code: $?\")",
+      "Bash(iconv -f UTF-8 -t UTF-8)",
+      "Bash(powershell -Command \"[System.IO.File]::ReadAllText\\('plan/工厂建模方案.md', [System.Text.Encoding]::GetEncoding\\('GBK'\\)\\)\")",
+      "Bash(./mvnw -q -DskipTests compile)",
+      "Bash(mvn -q -DskipTests compile)",
+      "Bash(git:*)",
+      "Bash(mvn:*)",
+      "Bash(npm ls:*)",
+      "Bash(./mvnw:*)",
+      "Read(//tmp/**)",
+      "Bash(npm:*)",
+      "Bash(npx knip:*)"
     ]
   }
 }

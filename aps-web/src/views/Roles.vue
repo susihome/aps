@@ -158,7 +158,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { msgSuccess, msgError, confirmDanger, extractErrorMsg } from '@/utils/message'
 import {
   Plus,
   Search,
@@ -178,6 +178,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useRoleApi, type Role, type RoleForm } from '@/api/role'
 import { usePermissionApi, type Permission } from '@/api/permission'
+import { dictionaryApi, type DictItem } from '@/api/dictionary'
 
 const roleApi = useRoleApi()
 const permissionApi = usePermissionApi()
@@ -187,6 +188,8 @@ const roles = ref<Role[]>([])
 const selectedRole = ref<Role | null>(null)
 const permissionTree = ref<Permission[]>([])
 const searchKeyword = ref('')
+const roleTypeItems = ref<DictItem[]>([])
+const roleTypeLabelMap = ref<Record<string, string>>({})
 
 const showDialog = ref(false)
 const editingRole = ref<Role | null>(null)
@@ -214,9 +217,19 @@ const filteredRoles = computed(() => {
 })
 
 onMounted(async () => {
-  await loadRoles()
-  await loadPermissionTree()
+  await Promise.all([loadRoles(), loadPermissionTree(), loadRoleTypeDict()])
 })
+
+async function loadRoleTypeDict() {
+  try {
+    roleTypeItems.value = await dictionaryApi.getEnabledItemsByTypeCode('ROLE_TYPE')
+    roleTypeLabelMap.value = Object.fromEntries(
+      roleTypeItems.value.map(item => [item.itemCode, item.itemName])
+    )
+  } catch {
+    roleTypeItems.value = []
+  }
+}
 
 async function loadRoles() {
   loading.value = true
@@ -227,7 +240,7 @@ async function loadRoles() {
       await selectRole(roles.value[0])
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '加载角色失败')
+    msgError(error.message || '加载角色失败')
   } finally {
     loading.value = false
   }
@@ -237,7 +250,7 @@ async function loadPermissionTree() {
   try {
     permissionTree.value = await permissionApi.getPermissionTree()
   } catch (error: any) {
-    ElMessage.error(error.message || '加载权限树失败')
+    msgError(error.message || '加载权限树失败')
   }
 }
 
@@ -251,7 +264,7 @@ async function selectRole(role: Role) {
       permissionTreeRef.value.setCheckedKeys(permissionIds)
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '加载角色权限失败')
+    msgError(error.message || '加载角色权限失败')
   }
 }
 
@@ -282,35 +295,31 @@ async function handleSave() {
     try {
       if (editingRole.value) {
         await roleApi.updateRole(editingRole.value.id, formData.value)
-        ElMessage.success('角色更新成功')
+        msgSuccess('角色更新成功')
       } else {
         await roleApi.createRole(formData.value)
-        ElMessage.success('角色创建成功')
+        msgSuccess('角色创建成功')
       }
       showDialog.value = false
       await loadRoles()
     } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+      msgError(error.message || '保存失败')
     }
   })
 }
 
 async function handleDelete(role: Role) {
   try {
-    await ElMessageBox.confirm(`确定删除角色 "${role.name}" 吗？`, '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await confirmDanger(`确定删除角色 "${role.name}" 吗？`)
     await roleApi.deleteRole(role.id)
-    ElMessage.success('删除成功')
+    msgSuccess('删除成功')
     if (selectedRole.value?.id === role.id) {
       selectedRole.value = null
     }
     await loadRoles()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      msgError(extractErrorMsg(error, '删除失败'))
     }
   }
 }
@@ -325,10 +334,10 @@ async function handleSavePermissions() {
   if (!selectedRole.value) return
   try {
     await roleApi.assignPermissions(selectedRole.value.id, selectedPermissionIds.value)
-    ElMessage.success('权限保存成功')
+    msgSuccess('权限保存成功')
     await loadRoles()
   } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
+    msgError(error.message || '保存失败')
   }
 }
 
@@ -411,12 +420,7 @@ function getRoleTagType(roleName: string): string {
 
 // 获取角色显示名称
 function getRoleDisplayName(roleName: string): string {
-  const nameMap: Record<string, string> = {
-    'ADMIN': '管理员',
-    'PLANNER': '计划员',
-    'SUPERVISOR': '监督员'
-  }
-  return nameMap[roleName] || roleName
+  return roleTypeLabelMap.value[roleName] || roleName
 }
 </script>
 

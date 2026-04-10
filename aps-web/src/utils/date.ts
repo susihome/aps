@@ -46,25 +46,11 @@ export function parseTime(timeStr: string): string {
 }
 
 /**
- * 验证时间格式是否有效
- * @param timeStr 时间字符串
- * @returns 是否有效
- */
-export function isValidTime(timeStr: string): boolean {
-  try {
-    parseTime(timeStr)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
  * 格式化日期为 YYYY-MM-DD 格式
  * @param date 日期对象或日期字符串
  * @returns YYYY-MM-DD 格式的日期字符串
  */
-export function formatDate(date: Date | string): string {
+function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
   if (isNaN(d.getTime())) {
     throw new Error('无效的日期')
@@ -73,20 +59,6 @@ export function formatDate(date: Date | string): string {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-/**
- * 验证日期格式是否有效
- * @param dateStr 日期字符串
- * @returns 是否有效
- */
-export function isValidDate(dateStr: string): boolean {
-  try {
-    formatDate(dateStr)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**

@@ -6,7 +6,7 @@
       <div class="left-panel">
         <div class="panel-header">
           <h3><el-icon><Calendar /></el-icon> 工厂日历</h3>
-          <el-button type="primary" size="small" @click="handleCreate">
+          <el-button v-if="canCreateFactoryCalendar" type="primary" size="small" @click="handleCreate">
             <el-icon><Plus /></el-icon>
             新增
           </el-button>
@@ -48,10 +48,13 @@
               </div>
             </div>
             <div class="calendar-actions">
-              <el-button text size="small" @click.stop="handleEdit(cal)">
+              <el-button v-if="!cal.isDefault && canEditFactoryCalendar" text size="small" type="success" @click.stop="handleSetDefault(cal)">
+                <el-icon><StarFilled /></el-icon>
+              </el-button>
+              <el-button v-if="canEditFactoryCalendar" text size="small" @click.stop="handleEdit(cal)">
                 <el-icon><Edit /></el-icon>
               </el-button>
-              <el-button text size="small" @click.stop="handleDelete(cal)">
+              <el-button v-if="canDeleteFactoryCalendar" text size="small" @click.stop="handleDelete(cal)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
@@ -81,11 +84,11 @@
                     </el-button>
                   </el-button-group>
                   <div class="month-actions">
-                    <el-button @click="showBatchWeekendDialog = true">
+                    <el-button :disabled="!canEditFactoryCalendar" @click="showBatchWeekendDialog = true">
                       <el-icon><Calendar /></el-icon>
                       批量设置单双休
                     </el-button>
-                    <el-button type="primary" @click="showBatchHolidayDialog = true">
+                    <el-button :disabled="!canEditFactoryCalendar" type="primary" @click="showBatchHolidayDialog = true">
                       <el-icon><Calendar /></el-icon>
                       批量设置节假日
                     </el-button>
@@ -146,16 +149,19 @@
                   <el-form :model="dateForm" label-width="80px" size="small">
                     <el-form-item label="日期类型">
                       <el-select v-model="dateForm.dateType">
-                        <el-option label="工作日" value="WORKDAY" />
-                        <el-option label="休息日" value="RESTDAY" />
-                        <el-option label="节假日" value="HOLIDAY" />
+                        <el-option
+                          v-for="item in dateTypeItems"
+                          :key="item.itemCode"
+                          :label="item.itemName"
+                          :value="item.itemCode"
+                        />
                       </el-select>
                     </el-form-item>
                     <el-form-item label="标签">
                       <el-input v-model="dateForm.label" placeholder="如：春节" />
                     </el-form-item>
                     <el-form-item>
-                      <el-button type="primary" size="small" @click="saveDateType">保存</el-button>
+                      <el-button :disabled="!canEditFactoryCalendar" type="primary" size="small" @click="saveDateType">保存</el-button>
                     </el-form-item>
                   </el-form>
                 </div>
@@ -166,7 +172,7 @@
             <el-tab-pane label="班次配置" name="shifts">
               <div class="shifts-view">
                 <div class="shifts-header">
-                  <el-button type="primary" size="small" @click="handleAddShift">
+                  <el-button v-if="canEditFactoryCalendar" type="primary" size="small" @click="handleAddShift">
                     <el-icon><Plus /></el-icon>
                     添加班次
                   </el-button>
@@ -177,13 +183,23 @@
                   <el-table-column prop="name" label="班次名称" width="120" />
                   <el-table-column prop="startTime" label="开始时间" width="120" />
                   <el-table-column prop="endTime" label="结束时间" width="120" />
+                  <el-table-column label="休息时长" width="120">
+                    <template #default="{ row }">
+                      {{ row.breakMinutes || 0 }} 分钟
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="有效时长" width="120">
+                    <template #default="{ row }">
+                      {{ formatShiftEffectiveHours(row) }}
+                    </template>
+                  </el-table-column>
                   <el-table-column prop="sortOrder" label="排序" width="80" />
                   <el-table-column label="操作" width="120">
                     <template #default="{ row }">
-                      <el-button text size="small" @click="handleEditShift(row)">
+                      <el-button v-if="canEditFactoryCalendar" text size="small" @click="handleEditShift(row)">
                         <el-icon><Edit /></el-icon>
                       </el-button>
-                      <el-button text size="small" @click="handleDeleteShift(row)">
+                      <el-button v-if="canDeleteFactoryCalendar" text size="small" @click="handleDeleteShift(row)">
                         <el-icon><Delete /></el-icon>
                       </el-button>
                     </template>
@@ -231,7 +247,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showCalendarDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveCalendar">保存</el-button>
+        <el-button :disabled="!canEditFactoryCalendar && !canCreateFactoryCalendar" type="primary" @click="saveCalendar">保存</el-button>
       </template>
     </el-dialog>
 
@@ -259,6 +275,10 @@
             value-format="HH:mm:ss"
           />
         </el-form-item>
+        <el-form-item label="休息时长" prop="breakMinutes">
+          <el-input-number v-model="shiftForm.breakMinutes" :min="0" :step="15" />
+          <span style="margin-left: 8px; color: #909399; font-size: 12px">分钟</span>
+        </el-form-item>
         <el-form-item label="跨天班次">
           <el-checkbox v-model="shiftForm.nextDay">
             结束时间在次日（如20:00-8:00）
@@ -270,7 +290,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showShiftDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveShift">保存</el-button>
+        <el-button :disabled="!canEditFactoryCalendar" type="primary" @click="saveShift">保存</el-button>
       </template>
     </el-dialog>
 
@@ -367,11 +387,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import { msgSuccess, msgError, msgWarning, confirmDanger, extractErrorMsg } from '@/utils/message'
 import {
   Calendar,
   Plus,
   Search,
+  StarFilled,
   Edit,
   Delete,
   ArrowLeft,
@@ -381,12 +403,16 @@ import {
 import { factoryCalendarApi, type FactoryCalendar, type CalendarShift, type CalendarDate } from '@/api/factoryCalendar'
 import { parseTime, validateShiftTime, getDateRange } from '@/utils/date'
 import { holidayTemplates, getHolidayDates, isYearSupported, SUPPORTED_YEARS } from '@/config/holidays'
+import { dictionaryApi, type DictItem } from '@/api/dictionary'
 
+const authStore = useAuthStore()
 const loading = ref(false)
 const calendars = ref<FactoryCalendar[]>([])
 const selectedCalendar = ref<FactoryCalendar | null>(null)
 const searchKeyword = ref('')
 const activeTab = ref('month')
+const dateTypeItems = ref<DictItem[]>([])
+const dateTypeNameMap = ref<Record<string, string>>({})
 
 // 日历表单
 const showCalendarDialog = ref(false)
@@ -414,12 +440,92 @@ const shiftForm = ref({
   startTime: '',
   endTime: '',
   sortOrder: 0,
+  breakMinutes: 0,
   nextDay: false
 })
 const shiftRules = {
   name: [{ required: true, message: '请输入班次名称', trigger: 'blur' }],
   startTime: [{ required: true, message: '请选择开始时间', trigger: 'blur' }],
-  endTime: [{ required: true, message: '请选择结束时间', trigger: 'blur' }]
+  endTime: [{ required: true, message: '请选择结束时间', trigger: 'blur' }],
+  breakMinutes: [{ required: true, message: '请输入休息时长', trigger: 'blur' }]
+}
+
+function getMinutesFromTime(time: string): number {
+  const [hours, minutes] = parseTime(time).split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+function getShiftEndMinutes(startTime: string, endTime: string, nextDay: boolean): number {
+  const start = getMinutesFromTime(startTime)
+  const end = getMinutesFromTime(endTime)
+  return nextDay ? end + 24 * 60 : Math.max(end, start)
+}
+
+function getShiftDurationMinutes(startTime: string, endTime: string, nextDay: boolean): number {
+  return getShiftEndMinutes(startTime, endTime, nextDay) - getMinutesFromTime(startTime)
+}
+
+function formatShiftEffectiveHours(shift: CalendarShift): string {
+  const totalMinutes = getShiftDurationMinutes(shift.startTime, shift.endTime, shift.nextDay ?? false)
+  const breakMinutes = shift.breakMinutes ?? 0
+  const effectiveMinutes = Math.max(totalMinutes - breakMinutes, 0)
+  return `${(effectiveMinutes / 60).toFixed(Number.isInteger(effectiveMinutes / 60) ? 0 : 2)} 小时`
+}
+
+function validateShiftOverlap(
+  currentShift: { startTime: string; endTime: string; nextDay: boolean },
+  shiftList: CalendarShift[],
+  excludeShiftId?: string
+): { valid: boolean; error?: string } {
+  const sortedShifts = [
+    ...shiftList.filter(shift => !(excludeShiftId && shift.id === excludeShiftId)),
+    {
+      id: excludeShiftId ?? '__new__',
+      name: '当前班次',
+      startTime: currentShift.startTime,
+      endTime: currentShift.endTime,
+      sortOrder: 0,
+      nextDay: currentShift.nextDay
+    }
+  ]
+    .map(shift => ({
+      ...shift,
+      startMinutes: getMinutesFromTime(shift.startTime),
+      endMinutes: getShiftEndMinutes(shift.startTime, shift.endTime, shift.nextDay ?? false)
+    }))
+    .sort((a, b) => a.startMinutes - b.startMinutes)
+
+  if (sortedShifts.length <= 1) {
+    return { valid: true }
+  }
+
+  for (let index = 1; index < sortedShifts.length; index++) {
+    const previousShift = sortedShifts[index - 1]
+    const currentSortedShift = sortedShifts[index]
+    const overlapMinutes = previousShift.endMinutes - currentSortedShift.startMinutes
+
+    if (overlapMinutes >= 1) {
+      const existingShift = previousShift.id === (excludeShiftId ?? '__new__') ? currentSortedShift : previousShift
+      return {
+        valid: false,
+        error: `班次时间与现有班次“${existingShift.name}”不能重叠，请调整后重试`
+      }
+    }
+  }
+
+  const firstShift = sortedShifts[0]
+  const lastShift = sortedShifts[sortedShifts.length - 1]
+  const crossDayOverlapMinutes = lastShift.endMinutes - (firstShift.startMinutes + 24 * 60)
+
+  if (crossDayOverlapMinutes >= 1) {
+    const existingShift = lastShift.id === (excludeShiftId ?? '__new__') ? firstShift : lastShift
+    return {
+      valid: false,
+      error: `班次时间与现有班次“${existingShift.name}”不能重叠，请调整后重试`
+    }
+  }
+
+  return { valid: true }
 }
 
 // 批量设置节假日
@@ -484,6 +590,11 @@ function getDayOfMonth(date: string): number {
   return Number(date.split('-')[2])
 }
 
+const canViewFactoryCalendar = computed(() => authStore.hasPermission('basedata:factory-calendar:list'))
+const canCreateFactoryCalendar = computed(() => authStore.hasPermission('basedata:factory-calendar:add'))
+const canEditFactoryCalendar = computed(() => authStore.hasPermission('basedata:factory-calendar:edit'))
+const canDeleteFactoryCalendar = computed(() => authStore.hasPermission('basedata:factory-calendar:remove'))
+
 const filteredCalendars = computed(() => {
   if (!searchKeyword.value) return calendars.value
   return calendars.value.filter(
@@ -494,28 +605,48 @@ const filteredCalendars = computed(() => {
 })
 
 onMounted(async () => {
-  await loadCalendars()
+  await Promise.all([loadCalendars(), loadDateTypeDict()])
 })
 
- async function loadCalendars() {
-   loading.value = true
-   try {
-     const result = await factoryCalendarApi.getCalendars()
-     calendars.value = result
-     if (selectedCalendar.value) {
-       const refreshedSelectedCalendar = calendars.value.find(
-         (calendar: FactoryCalendar) => calendar.id === selectedCalendar.value?.id
-       )
-       selectedCalendar.value = refreshedSelectedCalendar ?? null
-     }
-     if (calendars.value.length > 0 && !selectedCalendar.value) {
-       await selectCalendar(calendars.value[0] as FactoryCalendar)
+async function loadDateTypeDict() {
+  try {
+    dateTypeItems.value = await dictionaryApi.getEnabledItemsByTypeCode('DATE_TYPE')
+    dateTypeNameMap.value = Object.fromEntries(
+      dateTypeItems.value.map(item => [item.itemCode, item.itemName])
+    )
+  } catch {
+    dateTypeItems.value = []
+  }
+}
+
+async function loadCalendars() {
+  if (!canViewFactoryCalendar.value) {
+    calendars.value = []
+    selectedCalendar.value = null
+    return
+  }
+  loading.value = true
+  try {
+    const result = await factoryCalendarApi.getCalendars()
+    calendars.value = result
+    if (selectedCalendar.value) {
+      const refreshedSelectedCalendar = calendars.value.find(
+        (calendar: FactoryCalendar) => calendar.id === selectedCalendar.value?.id
+      )
+      selectedCalendar.value = refreshedSelectedCalendar ?? null
+    }
+    if (calendars.value.length > 0 && !selectedCalendar.value) {
+      await selectCalendar(calendars.value[0] as FactoryCalendar)
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '加载日历失败')
+    msgError(error.message || '加载日历失败')
   } finally {
     loading.value = false
   }
+}
+
+async function refreshCalendarListSelection() {
+  await loadCalendars()
 }
 
 async function selectCalendar(cal: FactoryCalendar) {
@@ -531,7 +662,7 @@ async function loadShifts() {
   try {
     shifts.value = await factoryCalendarApi.getShifts(selectedCalendar.value.id)
   } catch (error: any) {
-    ElMessage.error(error.message || '加载班次失败')
+    msgError(error.message || '加载班次失败')
   }
 }
 
@@ -545,7 +676,7 @@ async function loadMonthDates() {
     )
     calendarDates.value = sortCalendarDates(dates)
   } catch (error: any) {
-    ElMessage.error(error.message || '加载日期失败')
+    msgError(error.message || '加载日期失败')
   }
 }
 
@@ -588,12 +719,7 @@ function getDateTypeLabel(dateType: string): string {
 }
 
 function getDateTypeName(dateType: string): string {
-  const map: Record<string, string> = {
-    WORKDAY: '工作日',
-    RESTDAY: '休息日',
-    HOLIDAY: '节假日'
-  }
-  return map[dateType] || '日期类型'
+  return dateTypeNameMap.value[dateType] || dateType
 }
 
 function selectDate(date: CalendarDate) {
@@ -612,12 +738,12 @@ async function saveDateType() {
       dateType: dateForm.value.dateType,
       label: dateForm.value.label
     })
-    ElMessage.success(`已设置为${getDateTypeName(dateForm.value.dateType)}`)
+    msgSuccess(`已设置为${getDateTypeName(dateForm.value.dateType)}`)
     selectedDate.value = null
     await loadMonthDates()
     await loadCalendars()
   } catch (error: any) {
-    ElMessage.error(error.message || '设置失败')
+    msgError(error.message || '设置失败')
   }
 }
 
@@ -640,11 +766,11 @@ async function quickSetDateType(dateType: string) {
       dateType,
       label: contextMenuDate.value.label || ''
     })
-    ElMessage.success(`已设置为${getDateTypeName(dateType)}`)
+    msgSuccess(`已设置为${getDateTypeName(dateType)}`)
     await loadMonthDates()
     await refreshCalendarListSelection()
   } catch (error: any) {
-    ElMessage.error(error.message || '设置失败')
+    msgError(error.message || '设置失败')
   }
 }
 
@@ -670,22 +796,28 @@ function handleEdit(cal: FactoryCalendar) {
   showCalendarDialog.value = true
 }
 
+async function handleSetDefault(cal: FactoryCalendar) {
+  try {
+    await factoryCalendarApi.setDefault(cal.id)
+    msgSuccess(`已将"${cal.name}"设为默认日历`)
+    await loadCalendars()
+  } catch (error: any) {
+    msgError(extractErrorMsg(error, '设置默认失败'))
+  }
+}
+
 async function handleDelete(cal: FactoryCalendar) {
   try {
-    await ElMessageBox.confirm(`确定删除日历 "${cal.name}" 吗？`, '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await confirmDanger(`确定删除日历 "${cal.name}" 吗？`)
     await factoryCalendarApi.deleteCalendar(cal.id)
-    ElMessage.success(`日历"${cal.name}"已删除`)
+    msgSuccess(`日历"${cal.name}"已删除`)
     if (selectedCalendar.value?.id === cal.id) {
       selectedCalendar.value = null
     }
     await loadCalendars()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      msgError(extractErrorMsg(error, '删除失败'))
     }
   }
 }
@@ -697,15 +829,15 @@ async function saveCalendar() {
     try {
       if (editingCalendar.value) {
         await factoryCalendarApi.updateCalendar(editingCalendar.value.id, calendarForm.value)
-        ElMessage.success(`日历"${calendarForm.value.name}"已更新`)
+        msgSuccess(`日历"${calendarForm.value.name}"已更新`)
       } else {
         await factoryCalendarApi.createCalendar(calendarForm.value)
-        ElMessage.success(`日历"${calendarForm.value.name}"已创建`)
+        msgSuccess(`日历"${calendarForm.value.name}"已创建`)
       }
       showCalendarDialog.value = false
       await loadCalendars()
     } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+      msgError(error.message || '保存失败')
     }
   })
 }
@@ -717,6 +849,7 @@ function handleAddShift() {
     startTime: '',
     endTime: '',
     sortOrder: 0,
+    breakMinutes: 0,
     nextDay: false
   }
   showShiftDialog.value = true
@@ -729,6 +862,7 @@ function handleEditShift(shift: CalendarShift) {
     startTime: shift.startTime,
     endTime: shift.endTime,
     sortOrder: shift.sortOrder,
+    breakMinutes: shift.breakMinutes ?? 0,
     nextDay: shift.nextDay ?? false
   }
   showShiftDialog.value = true
@@ -737,17 +871,13 @@ function handleEditShift(shift: CalendarShift) {
 async function handleDeleteShift(shift: CalendarShift) {
   if (!selectedCalendar.value) return
   try {
-    await ElMessageBox.confirm(`确定删除班次 "${shift.name}" 吗？`, '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await confirmDanger(`确定删除班次 "${shift.name}" 吗？`)
     await factoryCalendarApi.deleteShift(selectedCalendar.value.id, shift.id)
-    ElMessage.success(`班次"${shift.name}"已删除`)
+    msgSuccess(`班次"${shift.name}"已删除`)
     await loadShifts()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      msgError(extractErrorMsg(error, '删除失败'))
     }
   }
 }
@@ -766,7 +896,27 @@ async function saveShift() {
       // 验证班次时间
       const validation = validateShiftTime(startTime, endTime, shiftForm.value.nextDay)
       if (!validation.valid) {
-        ElMessage.error(validation.error || '时间设置不合法')
+        msgError(validation.error || '时间设置不合法')
+        return
+      }
+
+      const totalShiftMinutes = getShiftDurationMinutes(startTime, endTime, shiftForm.value.nextDay)
+      if (shiftForm.value.breakMinutes >= totalShiftMinutes) {
+        msgError('休息时长必须小于班次总时长')
+        return
+      }
+
+      const overlapValidation = validateShiftOverlap(
+        {
+          startTime,
+          endTime,
+          nextDay: shiftForm.value.nextDay
+        },
+        shifts.value,
+        editingShift.value?.id
+      )
+      if (!overlapValidation.valid) {
+        msgError(overlapValidation.error || '班次时间重叠过长')
         return
       }
 
@@ -775,6 +925,7 @@ async function saveShift() {
         startTime,
         endTime,
         sortOrder: shiftForm.value.sortOrder,
+        breakMinutes: shiftForm.value.breakMinutes,
         nextDay: shiftForm.value.nextDay
       }
 
@@ -784,15 +935,15 @@ async function saveShift() {
           editingShift.value.id,
           normalizedForm
         )
-        ElMessage.success(`班次"${shiftForm.value.name}"已更新`)
+        msgSuccess(`班次"${shiftForm.value.name}"已更新`)
       } else {
         await factoryCalendarApi.addShift(selectedCalendar.value!.id, normalizedForm)
-        ElMessage.success(`班次"${shiftForm.value.name}"已添加`)
+        msgSuccess(`班次"${shiftForm.value.name}"已添加`)
       }
       showShiftDialog.value = false
       await loadShifts()
     } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+      msgError(error.message || '保存失败')
     }
   })
 }
@@ -800,40 +951,40 @@ async function saveShift() {
 async function saveBatchHolidays() {
   if (!selectedCalendar.value) return
   if (!batchHolidayForm.value.template) {
-    ElMessage.warning('请选择节假日模板或自定义日期')
+    msgWarning('请选择节假日模板或自定义日期')
     return
   }
 
   // 检查年份是否支持
   if (!isYearSupported(batchHolidayForm.value.year)) {
-    ElMessage.warning(`年份 ${batchHolidayForm.value.year} 暂不支持，支持的年份：${SUPPORTED_YEARS.join(', ')}`)
+    msgWarning(`年份 ${batchHolidayForm.value.year} 暂不支持，支持的年份：${SUPPORTED_YEARS.join(', ')}`)
     return
   }
 
   let dates: string[] = []
   if (batchHolidayForm.value.template === 'custom') {
     if (batchHolidayForm.value.customDates.length !== 2) {
-      ElMessage.warning('请选择开始和结束日期')
+      msgWarning('请选择开始和结束日期')
       return
     }
     const [start, end] = batchHolidayForm.value.customDates
     try {
       dates = getDateRange(start, end)
     } catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '日期范围无效')
+      msgError(error instanceof Error ? error.message : '日期范围无效')
       return
     }
   } else {
     try {
       dates = getHolidayDates(batchHolidayForm.value.template, batchHolidayForm.value.year)
     } catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '获取节假日日期失败')
+      msgError(error instanceof Error ? error.message : '获取节假日日期失败')
       return
     }
   }
 
   if (dates.length === 0) {
-    ElMessage.warning('未获取到节假日日期，请检查年份和模板配置')
+    msgWarning('未获取到节假日日期，请检查年份和模板配置')
     return
   }
 
@@ -842,7 +993,7 @@ async function saveBatchHolidays() {
       dates,
       label: batchHolidayForm.value.label
     })
-    ElMessage.success(`已设置${dates.length}个${batchHolidayForm.value.label || '节假日'}`)
+    msgSuccess(`已设置${dates.length}个${batchHolidayForm.value.label || '节假日'}`)
     showBatchHolidayDialog.value = false
     batchHolidayForm.value = {
       year: new Date().getFullYear(),
@@ -853,26 +1004,26 @@ async function saveBatchHolidays() {
     await loadMonthDates()
     await refreshCalendarListSelection()
   } catch (error: any) {
-    ElMessage.error(error.message || '设置失败')
+    msgError(error.message || '设置失败')
   }
 }
 
 async function saveBatchWeekendPattern() {
   if (!selectedCalendar.value) return
   if (!['SINGLE', 'DOUBLE'].includes(batchWeekendForm.value.pattern)) {
-    ElMessage.warning('请选择有效的休息规则')
+    msgWarning('请选择有效的休息规则')
     return
   }
   try {
     await factoryCalendarApi.applyWeekendPattern(selectedCalendar.value.id, {
       pattern: batchWeekendForm.value.pattern
     })
-    ElMessage.success(batchWeekendForm.value.pattern === 'SINGLE' ? '已设置为单休' : '已设置为双休')
+    msgSuccess(batchWeekendForm.value.pattern === 'SINGLE' ? '已设置为单休' : '已设置为双休')
     showBatchWeekendDialog.value = false
     await loadMonthDates()
     await refreshCalendarListSelection()
   } catch (error: any) {
-    ElMessage.error(error.message || '设置失败')
+    msgError(error.message || '设置失败')
   }
 }
 </script>

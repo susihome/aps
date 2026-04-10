@@ -100,7 +100,10 @@ const userRole = computed(() => {
     'PLANNER': '计划员',
     'SUPERVISOR': '主管'
   }
-  return roles.map(r => roleMap[r] || r).join(', ')
+  return roles.map(r => {
+    const name = typeof r === 'string' ? r : r.name
+    return roleMap[name] || name
+  }).join(', ')
 })
 
 const canAccessOrders = computed(() => {
