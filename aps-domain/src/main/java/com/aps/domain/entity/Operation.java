@@ -22,4 +22,12 @@ public class Operation extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "required_resource_id")
     private Resource requiredResource;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "required_material_id")
+    private Material requiredMaterial;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "required_mold_id")
+    private Mold requiredMold;
 }

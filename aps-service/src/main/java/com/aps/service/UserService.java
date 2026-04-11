@@ -20,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -93,8 +96,26 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public User getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameWithRoles(username)
                 .orElseThrow(() -> new ResourceNotFoundException("用户不存在: " + username));
+
+        List<UUID> roleIds = user.getRoles().stream()
+                .map(Role::getId)
+                .toList();
+
+        if (roleIds.isEmpty()) {
+            return user;
+        }
+
+        Map<UUID, Role> rolesWithPermissions = roleRepository.findAllWithPermissionsByIdIn(roleIds).stream()
+                .collect(Collectors.toMap(Role::getId, Function.identity()));
+
+        List<Role> resolvedRoles = user.getRoles().stream()
+                .map(role -> rolesWithPermissions.getOrDefault(role.getId(), role))
+                .toList();
+
+        user.setRoles(resolvedRoles);
+        return user;
     }
 
     /**

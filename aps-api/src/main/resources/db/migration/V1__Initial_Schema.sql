@@ -64,7 +64,7 @@ CREATE TABLE audit_logs (
     update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 资源表（设备/工作中心）
+-- 资源表（设备/设备）
 CREATE TABLE resources (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     resource_code VARCHAR(50) UNIQUE NOT NULL,

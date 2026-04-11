@@ -161,7 +161,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type Component, markRaw }
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, Document, Calendar, User, UserFilled, Expand, Fold,
-  Search, Close, ArrowDown, Setting, SetUp, Cpu, Lock, Collection
+  Search, Close, ArrowDown, Setting, SetUp, Cpu, Lock, Collection, Timer, Box
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { useTagsStore } from '../stores/tags'
@@ -188,6 +188,8 @@ const iconMap: Record<string, Component> = {
   SetUp: markRaw(SetUp),
   Cpu: markRaw(Cpu),
   Collection: markRaw(Collection),
+  Timer: markRaw(Timer),
+  Box: markRaw(Box),
 }
 
 // 菜单项接口

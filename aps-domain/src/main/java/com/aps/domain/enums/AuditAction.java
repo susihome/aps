@@ -25,6 +25,16 @@ public enum AuditAction {
     RESOURCE_UPDATE,      // 修改资源
     RESOURCE_DELETE,      // 删除资源
 
+    // 物料相关
+    MATERIAL_CREATE,      // 创建物料
+    MATERIAL_UPDATE,      // 修改物料
+    MATERIAL_DELETE,      // 删除物料
+
+    // 模具相关
+    MOLD_CREATE,          // 创建模具
+    MOLD_UPDATE,          // 修改模具
+    MOLD_DELETE,          // 删除模具
+
     // 用户权限相关
     USER_CREATE,          // 创建用户
     USER_UPDATE,          // 修改用户
@@ -35,6 +45,11 @@ public enum AuditAction {
     ROLE_REMOVE,          // 移除角色
     PERMISSION_GRANT,     // 授予权限
     PERMISSION_REVOKE,    // 撤销权限
+
+    // 排程时间参数
+    SCHEDULE_TIME_PARAM_CREATE,   // 创建排程时间参数
+    SCHEDULE_TIME_PARAM_UPDATE,   // 修改排程时间参数
+    SCHEDULE_TIME_PARAM_DELETE,   // 删除排程时间参数
 
     // 系统配置
     CONFIG_UPDATE,        // 修改系统配置

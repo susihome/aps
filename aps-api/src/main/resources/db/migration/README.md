@@ -27,7 +27,7 @@
 - `audit_logs` - 审计日志表
 
 **业务表：**
-- `resources` - 资源表（设备/工作中心）
+- `resources` - 资源表（设备/设备）
 - `orders` - 工单表
 - `operations` - 工序表
 - `schedules` - 排产方案表

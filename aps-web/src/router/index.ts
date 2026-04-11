@@ -29,13 +29,13 @@ const router = createRouter({
           path: 'orders',
           name: 'Orders',
           component: () => import('../components/OrderList.vue'),
-          meta: { requiresAuth: true, roles: ['ADMIN', 'PLANNER'], title: '工单管理', icon: 'Document', group: '生产管理', groupIcon: 'SetUp' }
+          meta: { requiresAuth: true, roles: ['ADMIN', 'PLANNER'], title: '工单管理', icon: 'Document', group: '排产管理', groupIcon: 'SetUp' }
         },
         {
           path: 'schedule',
           name: 'Schedule',
           component: () => import('../components/GanttChart.vue'),
-          meta: { requiresAuth: true, roles: ['ADMIN', 'PLANNER'], title: '排产计划', icon: 'Calendar', group: '生产管理', groupIcon: 'SetUp' }
+          meta: { requiresAuth: true, roles: ['ADMIN', 'PLANNER'], title: '排产计划', icon: 'Calendar', group: '排产管理', groupIcon: 'SetUp' }
         },
         {
           path: 'users',
@@ -84,6 +84,24 @@ const router = createRouter({
           name: 'ResourceCapacity',
           component: () => import('../views/ResourceCapacity.vue'),
           meta: { requiresAuth: true, title: '设备日产能', icon: 'Cpu', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:resource-capacity:list'] }
+        },
+        {
+          path: 'materials',
+          name: 'Material',
+          component: () => import('../views/Material.vue'),
+          meta: { requiresAuth: true, title: '物料管理', icon: 'Box', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:material:list'] }
+        },
+        {
+          path: 'molds',
+          name: 'Mold',
+          component: () => import('../views/Mold.vue'),
+          meta: { requiresAuth: true, title: '模具管理', icon: 'Box', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:mold:list'] }
+        },
+        {
+          path: 'schedule-time-parameter',
+          name: 'ScheduleTimeParameter',
+          component: () => import('../views/ScheduleTimeParameter.vue'),
+          meta: { requiresAuth: true, title: '时间参数', icon: 'Timer', group: '排产管理', groupIcon: 'SetUp', permissions: ['schedule:time-param:list'] }
         }
       ]
     }

@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Backend
 - **Spring Boot 3.4+ / JDK 21** - 虚拟线程处理高并发
 - **Timefold Solver** - 约束求解引擎（核心）
-- **PostgreSQL 16+** - 主数据存储（工单、工艺、资源、排产结果）
+- **PostgreSQL 18+** - 主数据存储（工单、工艺、资源、排产结果）
 - **Redis 7+** - 缓存 + Pub/Sub
 - **RabbitMQ 3.x** - MES事件异步处理
 - **JPA (Hibernate 6.x)** - ORM层
@@ -45,7 +45,7 @@ aps-system/
 
 **核心实体关系：**
 - `Order` (工单) → `Process` (工艺路线) → `Operation` (工序)
-- `Resource` (资源) → `Equipment` (设备) / `WorkCenter` (工作中心)
+- `Resource` (资源) → `Equipment` (设备) / `WorkCenter` (设备)
 - `Schedule` (排产方案) → `Assignment` (作业分配)
 
 **Timefold Planning Entities：**
@@ -117,7 +117,7 @@ docker run -d --name aps-postgres \
   -e POSTGRES_DB=aps \
   -e POSTGRES_USER=aps_user \
   -e POSTGRES_PASSWORD=aps_pass \
-  -p 5432:5432 postgres:16
+  -p 5432:5432 postgres:18
 
 # 连接数据库
 psql -h localhost -U aps_user -d aps

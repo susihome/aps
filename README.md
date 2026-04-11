@@ -26,7 +26,7 @@ docker-compose up -d
 
 - Spring Boot 3.4 + JDK 21
 - Timefold Solver 1.15
-- PostgreSQL 16
+- PostgreSQL 18
 - Redis 7
 - RabbitMQ 3
 
