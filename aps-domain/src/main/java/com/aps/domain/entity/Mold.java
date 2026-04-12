@@ -6,6 +6,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "molds")
 @Getter
@@ -29,4 +31,13 @@ public class Mold extends BaseEntity {
 
     @Column(length = 500)
     private String remark;
+
+    @Column(name = "required_tonnage")
+    private Integer requiredTonnage;
+
+    @Column(name = "max_shot_weight", precision = 10, scale = 2)
+    private BigDecimal maxShotWeight;
+
+    @Column(name = "maintenance_state", length = 32)
+    private String maintenanceState;
 }

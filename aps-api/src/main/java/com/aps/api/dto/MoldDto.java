@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -22,6 +23,9 @@ public class MoldDto {
     private String status;
     private Boolean enabled;
     private String remark;
+    private Integer requiredTonnage;
+    private BigDecimal maxShotWeight;
+    private String maintenanceState;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -34,6 +38,9 @@ public class MoldDto {
                 .status(mold.getStatus())
                 .enabled(mold.getEnabled())
                 .remark(mold.getRemark())
+                .requiredTonnage(mold.getRequiredTonnage())
+                .maxShotWeight(mold.getMaxShotWeight())
+                .maintenanceState(mold.getMaintenanceState())
                 .createTime(mold.getCreateTime())
                 .updateTime(mold.getUpdateTime())
                 .build();

@@ -35,6 +35,11 @@ public enum AuditAction {
     MOLD_UPDATE,          // 修改模具
     MOLD_DELETE,          // 删除模具
 
+    // 物料模具关系相关
+    MATERIAL_MOLD_BINDING_CREATE, // 创建物料模具关系
+    MATERIAL_MOLD_BINDING_UPDATE, // 修改物料模具关系
+    MATERIAL_MOLD_BINDING_DELETE, // 删除物料模具关系
+
     // 用户权限相关
     USER_CREATE,          // 创建用户
     USER_UPDATE,          // 修改用户

@@ -1,10 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-> 已废弃：本仓库的代理协作规范已迁移到 `AGENTS.md`，请不要再将本文件作为当前开发约束来源。
->
-> 当前应以根目录 `AGENTS.md` 为唯一有效入口。
-
-This file previously provided guidance to Claude Code (claude.ai/code) when working with this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 

@@ -3,6 +3,7 @@ package com.aps.service;
 import com.aps.domain.entity.Material;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;
+import com.aps.service.repository.MaterialMoldBindingRepository;
 import com.aps.service.repository.MaterialRepository;
 import com.aps.service.repository.OperationRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,9 @@ class MaterialServiceTest {
 
     @Mock
     private OperationRepository operationRepository;
+
+    @Mock
+    private MaterialMoldBindingRepository materialMoldBindingRepository;
 
     @InjectMocks
     private MaterialService materialService;
@@ -72,6 +76,19 @@ class MaterialServiceTest {
         assertThatThrownBy(() -> materialService.deleteMaterial(id))
                 .isInstanceOf(ResourceConflictException.class)
                 .hasMessageContaining("已被工序引用");
+    }
+
+    @Test
+    @DisplayName("删除被物料模具关系引用的物料应抛出冲突异常")
+    void deleteMaterial_whenReferencedByBinding_shouldThrowConflict() {
+        UUID id = UUID.randomUUID();
+        when(materialRepository.existsById(id)).thenReturn(true);
+        when(operationRepository.existsByRequiredMaterial_Id(id)).thenReturn(false);
+        when(materialMoldBindingRepository.existsByMaterial_Id(id)).thenReturn(true);
+
+        assertThatThrownBy(() -> materialService.deleteMaterial(id))
+                .isInstanceOf(ResourceConflictException.class)
+                .hasMessageContaining("物料模具关系引用");
     }
 
     @Test

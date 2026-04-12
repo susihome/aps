@@ -5,6 +5,7 @@ import com.aps.domain.entity.Material;
 import com.aps.domain.enums.AuditAction;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;
+import com.aps.service.repository.MaterialMoldBindingRepository;
 import com.aps.service.repository.MaterialRepository;
 import com.aps.service.repository.OperationRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class MaterialService {
 
     private final MaterialRepository materialRepository;
     private final OperationRepository operationRepository;
+    private final MaterialMoldBindingRepository materialMoldBindingRepository;
 
     @Transactional(readOnly = true)
     public List<Material> getAllMaterials() {
@@ -120,6 +122,9 @@ public class MaterialService {
         }
         if (operationRepository.existsByRequiredMaterial_Id(id)) {
             throw new ResourceConflictException("该物料已被工序引用，无法删除");
+        }
+        if (materialMoldBindingRepository.existsByMaterial_Id(id)) {
+            throw new ResourceConflictException("该物料已被物料模具关系引用，无法删除");
         }
         materialRepository.deleteById(id);
     }

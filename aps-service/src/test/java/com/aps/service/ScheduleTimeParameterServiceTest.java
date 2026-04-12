@@ -401,9 +401,6 @@ class ScheduleTimeParameterServiceTest {
         @Test
         @DisplayName("重复创建同一 Resource 的配置应抛出冲突异常")
         void create_DuplicateResource_ShouldThrow() {
-            Resource resource = new Resource();
-            resource.setId(resourceId);
-            when(resourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
             when(repo.existsByResource_Id(resourceId)).thenReturn(true);
 
             assertThatThrownBy(() -> service.create(

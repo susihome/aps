@@ -6,17 +6,19 @@ import ai.timefold.solver.core.api.domain.variable.PlanningVariable;
 import ai.timefold.solver.core.api.domain.variable.ShadowVariable;
 import ai.timefold.solver.core.api.domain.variable.VariableListener;
 import ai.timefold.solver.core.api.score.director.ScoreDirector;
-import com.aps.domain.entity.Operation;
+import com.aps.domain.entity.Mold;
 import com.aps.domain.entity.Resource;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Timefold 规划实体 - 纯内存对象，不持久化
+ * Timefold 规划实体 - 纯内存对象
  * 与 Assignment Entity 分离，避免 JPA 和 Solver 上下文混淆
  */
 @PlanningEntity(difficultyComparatorClass = AssignmentDifficultyComparator.class)
@@ -28,7 +30,12 @@ public class AssignmentPlanningModel implements Comparable<AssignmentPlanningMod
     private UUID assignmentId;
 
     // Problem facts（不会被 Solver 修改）
-    private Operation operation;
+    private OperationPlanningFact operation;
+    private List<Resource> eligibleResources = new ArrayList<>();
+    private List<Mold> candidateMolds = new ArrayList<>();
+    private Mold preferredMold;
+    private Integer preferredMoldPriority;
+    private Integer preferredChangeoverTimeMinutes;
 
     // Planning variables（会被 Solver 修改）
     @PlanningVariable(valueRangeProviderRefs = "resourceRange")
@@ -47,7 +54,7 @@ public class AssignmentPlanningModel implements Comparable<AssignmentPlanningMod
     @PlanningPin
     private Boolean pinned = false;
 
-    public AssignmentPlanningModel(UUID assignmentId, Operation operation) {
+    public AssignmentPlanningModel(UUID assignmentId, OperationPlanningFact operation) {
         this.assignmentId = assignmentId;
         this.operation = operation;
         this.pinned = false;
@@ -98,7 +105,7 @@ public class AssignmentPlanningModel implements Comparable<AssignmentPlanningMod
 
         private void updateEndTime(ScoreDirector<SchedulePlanningModel> scoreDirector, AssignmentPlanningModel assignment) {
             LocalDateTime startTime = assignment.getStartTime();
-            Operation operation = assignment.getOperation();
+            OperationPlanningFact operation = assignment.getOperation();
 
             LocalDateTime endTime;
             if (startTime == null || operation == null || operation.getStandardDuration() == null) {

@@ -2,9 +2,13 @@ package com.aps.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "materials")
@@ -55,4 +59,7 @@ public class Material extends BaseEntity {
 
     @Column(name = "product_group", length = 32)
     private String productGroup;
+
+    @OneToMany(mappedBy = "material")
+    private List<MaterialMoldBinding> moldBindings = new ArrayList<>();
 }

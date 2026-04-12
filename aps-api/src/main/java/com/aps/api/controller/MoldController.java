@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,7 +42,8 @@ public class MoldController {
     public AjaxResult<MoldDto> createMold(@Valid @RequestBody CreateMoldRequest request) {
         Mold mold = moldService.createMold(
                 request.moldCode(), request.moldName(), request.cavityCount(),
-                request.status(), request.enabled(), request.remark());
+                request.status(), request.enabled(), request.remark(),
+                request.requiredTonnage(), request.maxShotWeight(), request.maintenanceState());
         return AjaxResult.success(MoldDto.fromEntity(mold));
     }
 
@@ -55,7 +57,10 @@ public class MoldController {
                 request.cavityCount(),
                 request.status(),
                 request.enabled(),
-                request.remark()
+                request.remark(),
+                request.requiredTonnage(),
+                request.maxShotWeight(),
+                request.maintenanceState()
         );
         return AjaxResult.success(MoldDto.fromEntity(mold));
     }
@@ -73,7 +78,10 @@ public class MoldController {
             @Min(value = 1, message = "模穴数必须大于0") Integer cavityCount,
             @Size(max = 20, message = "状态长度不能超过20") String status,
             Boolean enabled,
-            @Size(max = 500, message = "备注长度不能超过500") String remark) {
+            @Size(max = 500, message = "备注长度不能超过500") String remark,
+            @Min(value = 0, message = "需求吨位不能小于0") Integer requiredTonnage,
+            BigDecimal maxShotWeight,
+            @Size(max = 32, message = "保养状态长度不能超过32") String maintenanceState) {
     }
 
     public record UpdateMoldRequest(
@@ -81,6 +89,9 @@ public class MoldController {
             @Min(value = 1, message = "模穴数必须大于0") Integer cavityCount,
             @Size(max = 20, message = "状态长度不能超过20") String status,
             Boolean enabled,
-            @Size(max = 500, message = "备注长度不能超过500") String remark) {
+            @Size(max = 500, message = "备注长度不能超过500") String remark,
+            @Min(value = 0, message = "需求吨位不能小于0") Integer requiredTonnage,
+            BigDecimal maxShotWeight,
+            @Size(max = 32, message = "保养状态长度不能超过32") String maintenanceState) {
     }
 }

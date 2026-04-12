@@ -1,188 +1,159 @@
 package com.aps.solver;
 
-import com.aps.domain.entity.*;
+import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
+import ai.timefold.solver.test.api.score.stream.ConstraintVerifier;
+import com.aps.domain.entity.Mold;
+import com.aps.domain.entity.Resource;
 import com.aps.domain.enums.OrderPriority;
+import com.aps.solver.model.AssignmentPlanningModel;
+import com.aps.solver.model.OperationPlanningFact;
+import com.aps.solver.model.SchedulePlanningModel;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-/**
- * 测试 ApsConstraintProvider 约束规则
- * 验证硬约束和软约束的正确性
- */
 class ApsConstraintProviderTest {
 
-    @Test
-    void testResourceConflict_noOverlap() {
-        // 测试无时间重叠的资源分配
-        Resource resource = createResource("R1");
-        Assignment a1 = createAssignment(resource,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 10, 0));
-        Assignment a2 = createAssignment(resource,
-                LocalDateTime.of(2026, 4, 2, 10, 0),
-                LocalDateTime.of(2026, 4, 2, 11, 0));
+    private ConstraintVerifier<ApsConstraintProvider, SchedulePlanningModel> constraintVerifier;
 
-        // 验证时间不重叠
-        assertFalse(isOverlapping(a1, a2), "相邻时间段不应重叠");
+    private static final LocalDateTime SCHEDULE_START = LocalDateTime.of(2026, 4, 2, 8, 0);
+    private static final LocalDateTime SCHEDULE_END = LocalDateTime.of(2026, 4, 3, 8, 0);
+
+    @BeforeEach
+    void setUp() {
+        constraintVerifier = ConstraintVerifier.build(
+                new ApsConstraintProvider(),
+                SchedulePlanningModel.class,
+                AssignmentPlanningModel.class
+        );
     }
 
     @Test
-    void testResourceConflict_withOverlap() {
-        // 测试有时间重叠的资源分配
-        Resource resource = createResource("R1");
-        Assignment a1 = createAssignment(resource,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 10, 30));
-        Assignment a2 = createAssignment(resource,
-                LocalDateTime.of(2026, 4, 2, 10, 0),
-                LocalDateTime.of(2026, 4, 2, 11, 0));
+    void resourceEligibility_shouldPenalizeIneligibleResource() {
+        Resource eligible = createResource("R1", 300, 100);
+        Resource ineligible = createResource("R2", 150, 30);
+        assertNotEquals(eligible, ineligible);
 
-        // 验证时间重叠
-        assertTrue(isOverlapping(a1, a2), "重叠时间段应被检测到");
+        AssignmentPlanningModel assignment = createAssignment(createOperationFact(1, 60), ineligible);
+        assignment.setEligibleResources(List.of(eligible));
+        assignment.setStartTime(SCHEDULE_START);
+        assignment.setEndTime(SCHEDULE_START.plusMinutes(60));
+
+        SchedulePlanningModel solution = buildSolution(List.of(eligible, ineligible), List.of(assignment));
+
+        constraintVerifier.verifyThat(ApsConstraintProvider::resourceEligibility)
+                .givenSolution(solution)
+                .penalizesBy(1);
     }
 
     @Test
-    void testOperationSequence_correctOrder() {
-        // 测试正确的工序顺序
-        Order order = createOrder("O1", LocalDateTime.of(2026, 4, 10, 17, 0));
-        Operation op1 = createOperation(order, 1, 60);
-        Operation op2 = createOperation(order, 2, 60);
+    void resourceEligibility_shouldNotPenalizeEligibleResource() {
+        Resource eligible = createResource("R1", 300, 100);
 
-        Assignment a1 = createAssignmentWithOperation(op1,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 10, 0));
-        Assignment a2 = createAssignmentWithOperation(op2,
-                LocalDateTime.of(2026, 4, 2, 10, 0),
-                LocalDateTime.of(2026, 4, 2, 11, 0));
+        AssignmentPlanningModel assignment = createAssignment(createOperationFact(1, 60), eligible);
+        assignment.setEligibleResources(List.of(eligible));
+        assignment.setStartTime(SCHEDULE_START);
+        assignment.setEndTime(SCHEDULE_START.plusMinutes(60));
 
-        // 验证工序2在工序1之后开始
-        assertFalse(a2.getStartTime().isBefore(a1.getEndTime()),
-                "后续工序应在前序工序完成后开始");
+        SchedulePlanningModel solution = buildSolution(List.of(eligible), List.of(assignment));
+
+        constraintVerifier.verifyThat(ApsConstraintProvider::resourceEligibility)
+                .givenSolution(solution)
+                .penalizesBy(0);
     }
 
     @Test
-    void testOperationSequence_wrongOrder() {
-        // 测试错误的工序顺序
-        Order order = createOrder("O1", LocalDateTime.of(2026, 4, 10, 17, 0));
-        Operation op1 = createOperation(order, 1, 60);
-        Operation op2 = createOperation(order, 2, 60);
+    void preferPreferredMold_shouldPenalizeLockedNonPreferredMold() {
+        Mold preferred = createMold("MOLD-A");
+        Mold locked = createMold("MOLD-B");
 
-        Assignment a1 = createAssignmentWithOperation(op1,
-                LocalDateTime.of(2026, 4, 2, 10, 0),
-                LocalDateTime.of(2026, 4, 2, 11, 0));
-        Assignment a2 = createAssignmentWithOperation(op2,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 10, 0));
+        Resource resource = createResource("R1", 300, 100);
+        AssignmentPlanningModel assignment = createAssignment(createOperationFact(1, 60), resource);
+        assignment.setPreferredMold(preferred);
+        assignment.setPreferredMoldPriority(5);
+        assignment.getOperation().setRequiredMaterialId(UUID.randomUUID());
+        assignment.getOperation().setLockedMoldId(locked.getId());
+        assignment.setStartTime(SCHEDULE_START);
+        assignment.setEndTime(SCHEDULE_START.plusMinutes(60));
 
-        // 验证工序2在工序1之前开始（违反约束）
-        assertTrue(a2.getStartTime().isBefore(a1.getEndTime()),
-                "工序顺序错误应被检测到");
+        SchedulePlanningModel solution = buildSolution(List.of(resource), List.of(assignment));
+
+        constraintVerifier.verifyThat(ApsConstraintProvider::preferPreferredMold)
+                .givenSolution(solution)
+                .penalizesBy(5);
     }
 
     @Test
-    void testMinimizeDelay_onTime() {
-        // 测试按时完成的工单
-        Order order = createOrder("O1", LocalDateTime.of(2026, 4, 10, 17, 0));
-        Operation operation = createOperation(order, 1, 60);
-        Assignment assignment = createAssignmentWithOperation(operation,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 10, 0));
+    void minimizeChangeover_shouldPenalizeAdjacentMoldSwitch() {
+        Resource resource = createResource("R1", 300, 100);
 
-        // 验证未延期
-        assertFalse(assignment.getEndTime().isAfter(order.getDueDate()),
-                "按时完成不应有延期");
+        AssignmentPlanningModel previous = createAssignment(createOperationFact(1, 60), resource);
+        previous.setPreferredMold(createMold("MOLD-A"));
+        previous.setPreferredChangeoverTimeMinutes(10);
+        previous.setStartTime(SCHEDULE_START);
+        previous.setEndTime(SCHEDULE_START.plusMinutes(60));
+
+        AssignmentPlanningModel current = createAssignment(createOperationFact(2, 60), resource);
+        current.setPreferredMold(createMold("MOLD-B"));
+        current.setPreferredChangeoverTimeMinutes(20);
+        current.setStartTime(SCHEDULE_START.plusMinutes(60));
+        current.setEndTime(SCHEDULE_START.plusMinutes(120));
+
+        SchedulePlanningModel solution = buildSolution(List.of(resource), List.of(previous, current));
+
+        constraintVerifier.verifyThat(ApsConstraintProvider::minimizeChangeover)
+                .givenSolution(solution)
+                .penalizesBy(20);
     }
 
-    @Test
-    void testMinimizeDelay_late() {
-        // 测试延期的工单
-        Order order = createOrder("O1", LocalDateTime.of(2026, 4, 2, 10, 0));
-        order.setPriority(OrderPriority.HIGH);
-        Operation operation = createOperation(order, 1, 60);
-        Assignment assignment = createAssignmentWithOperation(operation,
-                LocalDateTime.of(2026, 4, 2, 9, 0),
-                LocalDateTime.of(2026, 4, 2, 11, 0));
-
-        // 验证延期
-        assertTrue(assignment.getEndTime().isAfter(order.getDueDate()),
-                "延期应被检测到");
-
-        // 计算延期时间
-        long delayMinutes = java.time.Duration.between(
-                order.getDueDate(),
-                assignment.getEndTime()
-        ).toMinutes();
-        assertEquals(60, delayMinutes, "延期时间应为60分钟");
+    private SchedulePlanningModel buildSolution(List<Resource> resources, List<AssignmentPlanningModel> assignments) {
+        SchedulePlanningModel solution = new SchedulePlanningModel(UUID.randomUUID(), SCHEDULE_START, SCHEDULE_END);
+        solution.setResources(new ArrayList<>(resources));
+        solution.setAssignments(new ArrayList<>(assignments));
+        return solution;
     }
 
-    @Test
-    void testNullSafety_minimizeDelay() {
-        // 测试 minimizeDelay 的空值安全性
-        Assignment assignment = new Assignment();
-
-        // endTime 为 null 不应抛出异常
-        assertNull(assignment.getEndTime());
-        assertNull(assignment.getOperation());
-
-        // 设置 operation 但 order 为 null
-        Operation operation = new Operation();
-        assignment.setOperation(operation);
-        assertNull(operation.getOrder());
+    private AssignmentPlanningModel createAssignment(OperationPlanningFact operation, Resource resource) {
+        AssignmentPlanningModel assignment = new AssignmentPlanningModel(UUID.randomUUID(), operation);
+        assignment.setAssignedResource(resource);
+        return assignment;
     }
 
-    // Helper methods
-    private boolean isOverlapping(Assignment a1, Assignment a2) {
-        if (a1.getStartTime() == null || a1.getEndTime() == null ||
-            a2.getStartTime() == null || a2.getEndTime() == null) {
-            return false;
-        }
-        return a1.getStartTime().isBefore(a2.getEndTime()) &&
-               a2.getStartTime().isBefore(a1.getEndTime());
+    private OperationPlanningFact createOperationFact(int sequence, int duration) {
+        return OperationPlanningFact.builder()
+                .operationId(UUID.randomUUID())
+                .orderId(UUID.randomUUID())
+                .sequence(sequence)
+                .standardDuration(duration)
+                .dueDate(LocalDateTime.of(2026, 4, 3, 12, 0))
+                .priority(OrderPriority.NORMAL)
+                .eligibleResources(new ArrayList<>())
+                .candidateMolds(new ArrayList<>())
+                .build();
     }
 
-    private Resource createResource(String code) {
+    private Resource createResource(String code, Integer tonnage, int maxShotWeight) {
         Resource resource = new Resource();
+        resource.setId(UUID.randomUUID());
         resource.setResourceCode(code);
         resource.setResourceName("Resource " + code);
-        resource.setResourceType("MACHINE");
         resource.setAvailable(true);
+        resource.setTonnage(tonnage);
+        resource.setMaxShotWeight(BigDecimal.valueOf(maxShotWeight));
         return resource;
     }
 
-    private Order createOrder(String orderNo, LocalDateTime dueDate) {
-        Order order = new Order();
-        order.setOrderNo(orderNo);
-        order.setDueDate(dueDate);
-        order.setPriority(OrderPriority.NORMAL);
-        return order;
-    }
-
-    private Operation createOperation(Order order, int sequence, int duration) {
-        Operation operation = new Operation();
-        operation.setOrder(order);
-        operation.setSequence(sequence);
-        operation.setStandardDuration(duration);
-        return operation;
-    }
-
-    private Assignment createAssignment(Resource resource,
-                                        LocalDateTime startTime, LocalDateTime endTime) {
-        Assignment assignment = new Assignment();
-        assignment.setAssignedResource(resource);
-        assignment.setStartTime(startTime);
-        assignment.setEndTime(endTime);
-        return assignment;
-    }
-
-    private Assignment createAssignmentWithOperation(Operation operation,
-                                                     LocalDateTime startTime, LocalDateTime endTime) {
-        Assignment assignment = new Assignment();
-        assignment.setOperation(operation);
-        assignment.setStartTime(startTime);
-        assignment.setEndTime(endTime);
-        return assignment;
+    private Mold createMold(String code) {
+        Mold mold = new Mold();
+        mold.setId(UUID.randomUUID());
+        mold.setMoldCode(code);
+        return mold;
     }
 }

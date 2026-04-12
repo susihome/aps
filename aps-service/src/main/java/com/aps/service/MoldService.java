@@ -5,6 +5,7 @@ import com.aps.domain.entity.Mold;
 import com.aps.domain.enums.AuditAction;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;
+import com.aps.service.repository.MaterialMoldBindingRepository;
 import com.aps.service.repository.MoldRepository;
 import com.aps.service.repository.OperationRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +24,7 @@ public class MoldService {
 
     private final MoldRepository moldRepository;
     private final OperationRepository operationRepository;
+    private final MaterialMoldBindingRepository materialMoldBindingRepository;
 
     @Transactional(readOnly = true)
     public List<Mold> getAllMolds() {
@@ -37,7 +40,9 @@ public class MoldService {
     @Transactional
     @Audited(action = AuditAction.MOLD_CREATE, resource = "Mold")
     public Mold createMold(String moldCode, String moldName, Integer cavityCount,
-                           String status, Boolean enabled, String remark) {
+                           String status, Boolean enabled, String remark,
+                           Integer requiredTonnage, BigDecimal maxShotWeight,
+                           String maintenanceState) {
         String normalizedCode = normalizeCode(moldCode, "模具编码");
         if (moldRepository.existsByMoldCode(normalizedCode)) {
             throw new ResourceConflictException("模具编码已存在: " + normalizedCode);
@@ -51,13 +56,18 @@ public class MoldService {
         mold.setStatus(normalizeNullableText(status));
         mold.setEnabled(enabled == null || enabled);
         mold.setRemark(normalizeNullableText(remark));
+        mold.setRequiredTonnage(requiredTonnage);
+        mold.setMaxShotWeight(maxShotWeight);
+        mold.setMaintenanceState(normalizeNullableText(maintenanceState));
         return moldRepository.save(mold);
     }
 
     @Transactional
     @Audited(action = AuditAction.MOLD_UPDATE, resource = "Mold")
     public Mold updateMold(UUID id, String moldName, Integer cavityCount,
-                           String status, Boolean enabled, String remark) {
+                           String status, Boolean enabled, String remark,
+                           Integer requiredTonnage, BigDecimal maxShotWeight,
+                           String maintenanceState) {
         Mold mold = getMoldById(id);
         if (moldName != null) {
             mold.setMoldName(normalizeRequiredText(moldName, "模具名称"));
@@ -75,6 +85,15 @@ public class MoldService {
         if (remark != null) {
             mold.setRemark(normalizeNullableText(remark));
         }
+        if (requiredTonnage != null) {
+            mold.setRequiredTonnage(requiredTonnage);
+        }
+        if (maxShotWeight != null) {
+            mold.setMaxShotWeight(maxShotWeight);
+        }
+        if (maintenanceState != null) {
+            mold.setMaintenanceState(normalizeNullableText(maintenanceState));
+        }
         return moldRepository.save(mold);
     }
 
@@ -86,6 +105,9 @@ public class MoldService {
         }
         if (operationRepository.existsByRequiredMold_Id(id)) {
             throw new ResourceConflictException("该模具已被工序引用，无法删除");
+        }
+        if (materialMoldBindingRepository.existsByMold_Id(id)) {
+            throw new ResourceConflictException("该模具已被物料模具关系引用，无法删除");
         }
         moldRepository.deleteById(id);
     }
