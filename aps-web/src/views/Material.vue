@@ -514,11 +514,12 @@ async function handleExport() {
   }
   exporting.value = true
   try {
-    const response = await materialApi.exportFile('xlsx')
+    const fileInfo = await materialApi.createTemplateFile('xlsx')
+    const response = await materialApi.downloadTemplateFile(fileInfo.fileToken)
     const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const disposition = String(response.headers['content-disposition'] ?? '')
     const matched = disposition.match(/filename="?([^"]+)"?/)
-    const fileName = matched?.[1] ?? 'materials-template.xlsx'
+    const fileName = matched?.[1] ?? fileInfo.fileName
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url

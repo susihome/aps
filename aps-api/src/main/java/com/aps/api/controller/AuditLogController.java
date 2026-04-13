@@ -19,7 +19,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -123,11 +122,8 @@ public class AuditLogController {
         return AjaxResult.success(statistics);
     }
 
-    /**
-     * 导出审计日志为CSV
-     */
-    @GetMapping("/export")
-    public ResponseEntity<byte[]> exportAuditLogs(
+    @PostMapping("/export-files")
+    public AjaxResult<ExportFileResponse> createExportFile(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime
     ) {
@@ -137,14 +133,19 @@ public class AuditLogController {
         if (endTime == null) {
             endTime = LocalDateTime.now();
         }
+        AuditService.ExportFileResult result = auditService.exportAuditLogsToFile(startTime, endTime);
+        return AjaxResult.success(new ExportFileResponse(result.fileName(), result.fileToken()));
+    }
 
-        byte[] csvData = auditService.exportAuditLogs(startTime, endTime);
-
-        String filename = "audit_logs_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv";
-
+    @GetMapping("/exports/{token}")
+    public ResponseEntity<byte[]> downloadExportFile(@PathVariable String token) {
+        String fileName = auditService.getExportFileName(token);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                .body(csvData);
+                .body(auditService.loadExportFile(token));
+    }
+
+    public record ExportFileResponse(String fileName, String fileToken) {
     }
 }

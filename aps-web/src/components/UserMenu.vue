@@ -15,6 +15,14 @@
             <div class="user-role">{{ userRole }}</div>
           </div>
         </el-dropdown-item>
+        <el-dropdown-item command="sessions" aria-label="设备管理">
+          <el-icon aria-hidden="true"><Monitor /></el-icon>
+          <span>设备管理</span>
+        </el-dropdown-item>
+        <el-dropdown-item command="logoutAll" aria-label="退出全部设备">
+          <el-icon aria-hidden="true"><CircleClose /></el-icon>
+          <span>退出全部设备</span>
+        </el-dropdown-item>
         <el-dropdown-item divided command="logout" aria-label="退出登录">
           <el-icon aria-hidden="true"><SwitchButton /></el-icon>
           <span>退出登录</span>
@@ -28,8 +36,9 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { msgSuccess, confirmAction } from '@/utils/message'
-import { ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, CircleClose, Monitor, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { authApi } from '@/api/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -60,6 +69,24 @@ const handleCommand = async (command: string) => {
     } catch (error) {
       // 用户取消
     }
+    return
+  }
+
+  if (command === 'logoutAll') {
+    try {
+      await confirmAction('确定要退出全部设备吗？当前设备也会被一并退出。')
+      await authApi.logoutAll()
+      authStore.user = null
+      msgSuccess('已退出全部设备')
+      router.push('/login')
+    } catch (error) {
+      // 用户取消
+    }
+    return
+  }
+
+  if (command === 'sessions') {
+    router.push('/session-devices')
   }
 }
 </script>

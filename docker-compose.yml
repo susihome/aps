@@ -26,8 +26,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: aps
-      RABBITMQ_DEFAULT_PASS: aps
+      RABBITMQ_DEFAULT_USER: aps_user
+      RABBITMQ_DEFAULT_PASS: aps_pass
 
 volumes:
   postgres_data:

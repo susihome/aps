@@ -1,5 +1,7 @@
 package com.aps.api.security;
 
+import com.aps.service.AuthSessionService;
+import com.aps.service.TokenBlacklistService;
 import com.aps.service.security.JwtTokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,6 +27,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService userDetailsService;
+    private final AuthSessionService authSessionService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -34,8 +38,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String jwt = getJwtFromCookie(request);
 
             if (jwt != null && tokenProvider.validateToken(jwt) && !tokenProvider.isRefreshToken(jwt)) {
-                String username = tokenProvider.getUsernameFromToken(jwt);
                 UUID userId = tokenProvider.getUserIdFromToken(jwt);
+                long sessionVersion = tokenProvider.getSessionVersionFromToken(jwt);
+                String tokenId = tokenProvider.getTokenId(jwt);
+                if (tokenBlacklistService.isBlacklisted(tokenId)
+                        || !authSessionService.isSessionVersionValid(userId, sessionVersion)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                String username = tokenProvider.getUsernameFromToken(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                 // 使用 UserPrincipal 携带 userId
@@ -51,6 +63,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                authSessionService.touchSession(tokenProvider.getSessionIdFromToken(jwt));
                 log.debug("设置用户认证: {}", username);
             }
         } catch (Exception e) {

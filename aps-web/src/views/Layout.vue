@@ -215,7 +215,7 @@ const layoutRoute = computed(() => {
 const allMenuItems = computed(() => {
   if (!layoutRoute.value?.children) return []
   return layoutRoute.value.children
-    .filter(r => r.meta?.title)
+    .filter(r => r.meta?.title && !r.meta?.hideInMenu)
     .map(r => ({
       path: '/' + r.path,
       title: r.meta!.title as string,

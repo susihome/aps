@@ -13,11 +13,12 @@ public class ScheduleProgressPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    public void publishProgress(UUID scheduleId, int progress, String score) {
+    public void publishProgress(UUID scheduleId, int progress, String messageText, String score) {
         ProgressMessage message = new ProgressMessage(
                 "PROGRESS",
                 scheduleId.toString(),
                 progress,
+                messageText,
                 score,
                 LocalDateTime.now()
         );
@@ -49,6 +50,7 @@ public class ScheduleProgressPublisher {
             String type,
             String scheduleId,
             int progress,
+            String message,
             String currentScore,
             LocalDateTime timestamp
     ) {}

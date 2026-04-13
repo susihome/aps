@@ -27,6 +27,9 @@ class AuditServiceTest {
     @Mock
     private AuditLogRepository auditLogRepository;
 
+    @Mock
+    private FileObjectService fileObjectService;
+
     @InjectMocks
     private AuditService auditService;
 
@@ -144,6 +147,26 @@ class AuditServiceTest {
         String csvContent = new String(result, java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(csvContent.contains("时间"));
         assertTrue(csvContent.contains("testuser"));
+    }
+
+    @Test
+    void testExportAuditLogsToFile() {
+        when(auditLogRepository.searchAuditLogs(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(new PageImpl<>(Arrays.asList(testAuditLog)));
+        when(fileObjectService.storeTemporaryFile(any(), any(), any(), any(), any()))
+            .thenReturn("audit-export-token");
+
+        AuditService.ExportFileResult result =
+            auditService.exportAuditLogsToFile(LocalDateTime.now().minusDays(7), LocalDateTime.now());
+
+        assertEquals("audit-export-token", result.fileToken());
+        assertTrue(result.fileName().startsWith("audit_logs_"));
+        verify(fileObjectService).storeTemporaryFile(
+            eq("AUDIT_EXPORT"),
+            any(),
+            any(),
+            any(),
+            eq("text/csv"));
     }
 
     @Test

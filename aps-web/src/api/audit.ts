@@ -42,6 +42,11 @@ export interface AuditStatistics {
   endTime: string
 }
 
+export interface ExportFileInfo {
+  fileName: string
+  fileToken: string
+}
+
 /**
  * 多条件搜索审计日志
  */
@@ -58,12 +63,14 @@ export function getStatistics(startTime?: string, endTime?: string) {
   })
 }
 
-/**
- * 导出审计日志为CSV
- */
-export function exportAuditLogs(startTime?: string, endTime?: string) {
-  return axios.get('/audit-logs/export', {
-    params: { startTime, endTime },
+export function createAuditExportFile(startTime?: string, endTime?: string) {
+  return axios.post<AjaxResult<ExportFileInfo>>('/audit-logs/export-files', null, {
+    params: { startTime, endTime }
+  })
+}
+
+export function downloadAuditExportFile(token: string) {
+  return axios.get(`/audit-logs/exports/${token}`, {
     responseType: 'blob'
   })
 }

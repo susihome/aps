@@ -47,4 +47,24 @@
         <Method name="parseNullableBoolean"/>
         <Bug pattern="NP_BOOLEAN_RETURN_NULL"/>
     </Match>
+    <Match>
+        <Package name="com.aps.service.config"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.service.mq"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.service.storage"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="com.aps.service.FileObjectService$StoredFile"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.mq.consumer"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
 </FindBugsFilter>

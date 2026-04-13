@@ -62,6 +62,12 @@ const router = createRouter({
           meta: { requiresAuth: true, roles: ['ADMIN'], title: '审计日志', icon: 'Document', group: '系统管理', groupIcon: 'Setting' }
         },
         {
+          path: 'session-devices',
+          name: 'SessionDevices',
+          component: () => import('../views/SessionDevices.vue'),
+          meta: { requiresAuth: true, title: '设备管理', icon: 'UserFilled', hideInMenu: true }
+        },
+        {
           path: 'dictionary',
           name: 'Dictionary',
           component: () => import('../views/Dictionary.vue'),

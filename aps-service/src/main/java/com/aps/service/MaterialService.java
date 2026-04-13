@@ -2,12 +2,10 @@ package com.aps.service;
 
 import com.aps.domain.annotation.Audited;
 import com.aps.domain.entity.Material;
-import com.aps.domain.entity.MaterialImportErrorFile;
 import com.aps.domain.enums.AuditAction;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;
 import com.aps.service.exception.ValidationException;
-import com.aps.service.repository.MaterialImportErrorFileRepository;
 import com.aps.service.repository.MaterialMoldBindingRepository;
 import com.aps.service.repository.MaterialRepository;
 import com.aps.service.repository.OperationRepository;
@@ -43,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -68,11 +65,17 @@ public class MaterialService {
     private static final int IMPORT_BATCH_SIZE = 1_000;
     private static final int MAX_FAILURE_PREVIEW = 100;
     private static final Duration IMPORT_ERROR_FILE_TTL = Duration.ofHours(24);
+    private static final Duration MATERIAL_EXPORT_FILE_TTL = Duration.ofHours(24);
+    private static final Duration MATERIAL_TEMPLATE_FILE_TTL = Duration.ofHours(24);
+    private static final String MATERIAL_IMPORT_ERROR_BUSINESS_TYPE = "MATERIAL_IMPORT_ERROR";
+    private static final String MATERIAL_EXPORT_BUSINESS_TYPE = "MATERIAL_EXPORT";
+    private static final String MATERIAL_TEMPLATE_BUSINESS_TYPE = "MATERIAL_TEMPLATE";
 
     private final MaterialRepository materialRepository;
     private final OperationRepository operationRepository;
     private final MaterialMoldBindingRepository materialMoldBindingRepository;
-    private final MaterialImportErrorFileRepository materialImportErrorFileRepository;
+    private final FileObjectService fileObjectService;
+    private final ScheduledTaskLockService scheduledTaskLockService;
 
     @Transactional(readOnly = true)
     public List<Material> getAllMaterials() {
@@ -139,6 +142,58 @@ public class MaterialService {
         } catch (IOException exception) {
             throw new ValidationException("导出Excel模板失败");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public ExportFileResult exportMaterialsToFile(String format) {
+        String normalizedFormat = format == null ? "xlsx" : format.trim().toLowerCase();
+        if ("csv".equals(normalizedFormat)) {
+            byte[] content = exportMaterials();
+            String fileName = "materials-export.csv";
+            String token = fileObjectService.storeTemporaryFile(
+                    MATERIAL_EXPORT_BUSINESS_TYPE,
+                    fileName,
+                    content,
+                    MATERIAL_EXPORT_FILE_TTL,
+                    "text/csv");
+            return new ExportFileResult(fileName, token);
+        }
+
+        byte[] content = exportMaterialsAsExcel();
+        String fileName = "materials-template.xlsx";
+        String token = fileObjectService.storeTemporaryFile(
+                MATERIAL_EXPORT_BUSINESS_TYPE,
+                fileName,
+                content,
+                MATERIAL_EXPORT_FILE_TTL,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return new ExportFileResult(fileName, token);
+    }
+
+    @Transactional(readOnly = true)
+    public ExportFileResult exportTemplateToFile(String format) {
+        String normalizedFormat = format == null ? "xlsx" : format.trim().toLowerCase();
+        if ("csv".equals(normalizedFormat)) {
+            byte[] content = exportMaterials();
+            String fileName = "materials-template.csv";
+            String token = fileObjectService.storeTemporaryFile(
+                    MATERIAL_TEMPLATE_BUSINESS_TYPE,
+                    fileName,
+                    content,
+                    MATERIAL_TEMPLATE_FILE_TTL,
+                    "text/csv");
+            return new ExportFileResult(fileName, token);
+        }
+
+        byte[] content = exportMaterialsAsExcel();
+        String fileName = "materials-template.xlsx";
+        String token = fileObjectService.storeTemporaryFile(
+                MATERIAL_TEMPLATE_BUSINESS_TYPE,
+                fileName,
+                content,
+                MATERIAL_TEMPLATE_FILE_TTL,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return new ExportFileResult(fileName, token);
     }
 
     @Transactional(readOnly = true)
@@ -923,24 +978,22 @@ public class MaterialService {
     }
 
     private String storeImportErrorFile(byte[] content, String fileName) {
-        MaterialImportErrorFile errorFile = new MaterialImportErrorFile();
-        errorFile.setId(UUID.randomUUID());
-        errorFile.setFileName(fileName);
-        errorFile.setContent(content);
-        errorFile.setExpiresAt(LocalDateTime.now().plus(IMPORT_ERROR_FILE_TTL));
-        materialImportErrorFileRepository.save(errorFile);
-        return errorFile.getId().toString();
+        return fileObjectService.storeTemporaryFile(
+                MATERIAL_IMPORT_ERROR_BUSINESS_TYPE,
+                fileName,
+                content,
+                IMPORT_ERROR_FILE_TTL,
+                "text/csv");
     }
 
     private String storeImportErrorFile(Path path, String fileName) {
         try {
-            MaterialImportErrorFile errorFile = new MaterialImportErrorFile();
-            errorFile.setId(UUID.randomUUID());
-            errorFile.setFileName(fileName);
-            errorFile.setContent(Files.readAllBytes(path));
-            errorFile.setExpiresAt(LocalDateTime.now().plus(IMPORT_ERROR_FILE_TTL));
-            materialImportErrorFileRepository.save(errorFile);
-            return errorFile.getId().toString();
+            return fileObjectService.storeTemporaryFile(
+                    MATERIAL_IMPORT_ERROR_BUSINESS_TYPE,
+                    fileName,
+                    Files.readAllBytes(path),
+                    IMPORT_ERROR_FILE_TTL,
+                    "text/csv");
         } catch (IOException exception) {
             throw new ValidationException("保存错误文件失败");
         } finally {
@@ -953,17 +1006,42 @@ public class MaterialService {
     }
 
     public byte[] loadImportErrorFile(String token) {
-        return resolveImportErrorFile(token).getContent();
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_IMPORT_ERROR_BUSINESS_TYPE).content();
     }
 
     public String getImportErrorFileName(String token) {
-        return resolveImportErrorFile(token).getFileName();
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_IMPORT_ERROR_BUSINESS_TYPE).fileName();
+    }
+
+    public byte[] loadExportFile(String token) {
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_EXPORT_BUSINESS_TYPE).content();
+    }
+
+    public String getExportFileName(String token) {
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_EXPORT_BUSINESS_TYPE).fileName();
+    }
+
+    public byte[] loadTemplateFile(String token) {
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_TEMPLATE_BUSINESS_TYPE).content();
+    }
+
+    public String getTemplateFileName(String token) {
+        return fileObjectService.loadTemporaryFile(token, MATERIAL_TEMPLATE_BUSINESS_TYPE).fileName();
     }
 
     @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void cleanupExpiredImportErrorFiles() {
-        materialImportErrorFileRepository.deleteByExpiresAtBefore(LocalDateTime.now());
+        if (!scheduledTaskLockService.tryLock("material:file-cleanup", "material-file-cleanup-scheduler")) {
+            return;
+        }
+        try {
+            fileObjectService.cleanupExpiredFiles(MATERIAL_IMPORT_ERROR_BUSINESS_TYPE);
+            fileObjectService.cleanupExpiredFiles(MATERIAL_EXPORT_BUSINESS_TYPE);
+            fileObjectService.cleanupExpiredFiles(MATERIAL_TEMPLATE_BUSINESS_TYPE);
+        } finally {
+            scheduledTaskLockService.unlock("material:file-cleanup", "material-file-cleanup-scheduler");
+        }
     }
 
     private Boolean parseRequiredBoolean(String value, String fieldName) {
@@ -1011,6 +1089,9 @@ public class MaterialService {
     public record MaterialImportFailure(int rowNumber, String columnName, String message) {
     }
 
+    public record ExportFileResult(String fileName, String fileToken) {
+    }
+
     private record CsvImportRow(int rowNumber, List<String> columns, String materialCode) {
         private CsvImportRow(int rowNumber, List<String> columns) {
             this(rowNumber, columns, null);
@@ -1037,19 +1118,4 @@ public class MaterialService {
         }
     }
 
-    private MaterialImportErrorFile resolveImportErrorFile(String token) {
-        UUID fileId;
-        try {
-            fileId = UUID.fromString(token);
-        } catch (IllegalArgumentException exception) {
-            throw new ResourceNotFoundException("导入错误文件不存在: " + token);
-        }
-        MaterialImportErrorFile errorFile = materialImportErrorFileRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException("导入错误文件不存在: " + token));
-        if (errorFile.getExpiresAt().isAfter(LocalDateTime.now())) {
-            return errorFile;
-        }
-        materialImportErrorFileRepository.delete(errorFile);
-        throw new ResourceNotFoundException("导入错误文件不存在: " + token);
-    }
 }

@@ -1,11 +1,9 @@
 package com.aps.service;
 
-import com.aps.domain.entity.MaterialImportErrorFile;
 import com.aps.domain.entity.Material;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;
 import com.aps.service.exception.ValidationException;
-import com.aps.service.repository.MaterialImportErrorFileRepository;
 import com.aps.service.repository.MaterialMoldBindingRepository;
 import com.aps.service.repository.MaterialRepository;
 import com.aps.service.repository.OperationRepository;
@@ -20,8 +18,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +44,10 @@ class MaterialServiceTest {
     private MaterialMoldBindingRepository materialMoldBindingRepository;
 
     @Mock
-    private MaterialImportErrorFileRepository materialImportErrorFileRepository;
+    private FileObjectService fileObjectService;
+
+    @Mock
+    private ScheduledTaskLockService scheduledTaskLockService;
 
     @InjectMocks
     private MaterialService materialService;
@@ -206,6 +206,52 @@ class MaterialServiceTest {
     }
 
     @Test
+    @DisplayName("导出物料到共享文件时应返回文件token")
+    void exportMaterialsToFile_shouldStoreFileAndReturnToken() {
+        Material material = new Material();
+        material.setMaterialCode("MAT-001");
+        material.setMaterialName("PP树脂");
+        material.setEnabled(true);
+        when(materialRepository.findAllByOrderByMaterialCodeAsc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(java.util.List.of(material), PageRequest.of(0, 2000), 1));
+        when(fileObjectService.storeTemporaryFile(any(), any(), any(), any(), any())).thenReturn("export-token");
+
+        MaterialService.ExportFileResult result = materialService.exportMaterialsToFile("csv");
+
+        assertThat(result.fileName()).isEqualTo("materials-export.csv");
+        assertThat(result.fileToken()).isEqualTo("export-token");
+        verify(fileObjectService).storeTemporaryFile(
+                eq("MATERIAL_EXPORT"),
+                eq("materials-export.csv"),
+                any(),
+                any(),
+                eq("text/csv"));
+    }
+
+    @Test
+    @DisplayName("导出物料模板到共享文件时应返回文件token")
+    void exportMaterialTemplateToFile_shouldStoreFileAndReturnToken() {
+        Material material = new Material();
+        material.setMaterialCode("MAT-001");
+        material.setMaterialName("PP树脂");
+        material.setEnabled(true);
+        when(materialRepository.findAllByOrderByMaterialCodeAsc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(java.util.List.of(material), PageRequest.of(0, 2000), 1));
+        when(fileObjectService.storeTemporaryFile(any(), any(), any(), any(), any())).thenReturn("template-token");
+
+        MaterialService.ExportFileResult result = materialService.exportTemplateToFile("xlsx");
+
+        assertThat(result.fileName()).isEqualTo("materials-template.xlsx");
+        assertThat(result.fileToken()).isEqualTo("template-token");
+        verify(fileObjectService).storeTemporaryFile(
+                eq("MATERIAL_TEMPLATE"),
+                eq("materials-template.xlsx"),
+                any(),
+                any(),
+                eq("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+    }
+
+    @Test
     @DisplayName("导入物料时应按物料编码更新已有数据并新增不存在数据")
     void importMaterials_whenCsvContainsExistingAndNew_shouldUpsert() {
         Material existing = new Material();
@@ -255,7 +301,6 @@ class MaterialServiceTest {
     @DisplayName("导入物料时应先落库成功数据并返回错误文件")
     void importMaterials_whenPartiallyInvalid_shouldPersistSuccessRowsAndReturnErrorFile() throws Exception {
         Material existing = new Material();
-        AtomicReference<MaterialImportErrorFile> savedErrorFile = new AtomicReference<>();
         existing.setId(UUID.randomUUID());
         existing.setMaterialCode("MAT-001");
         existing.setMaterialName("旧名称");
@@ -266,13 +311,12 @@ class MaterialServiceTest {
                     return codes.contains("MAT-001") ? java.util.List.of(existing) : java.util.List.of();
                 });
         when(materialRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(materialImportErrorFileRepository.save(any(MaterialImportErrorFile.class))).thenAnswer(invocation -> {
-            MaterialImportErrorFile errorFile = invocation.getArgument(0);
-            savedErrorFile.set(errorFile);
-            return errorFile;
-        });
-        when(materialImportErrorFileRepository.findById(any(UUID.class))).thenAnswer(invocation ->
-                Optional.ofNullable(savedErrorFile.get()).filter(file -> file.getId().equals(invocation.getArgument(0))));
+        when(fileObjectService.storeTemporaryFile(any(), any(), any(), any(), any())).thenReturn("token-123");
+        when(fileObjectService.loadTemporaryFile("token-123", "MATERIAL_IMPORT_ERROR"))
+                .thenReturn(new FileObjectService.StoredFile(
+                        "materials-import-errors.csv",
+                        "materialCode,materialName,specification,unit,enabled,remark,colorCode,rawMaterialType,defaultLotSize,minLotSize,maxLotSize,allowDelay,abcClassification,productGroup,errorColumn,errorMessage\nMAT-002,,25kg/袋,kg,true,,,,,,,,,,materialName,物料名称不能为空".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        "text/csv"));
 
         String csv = """
                 materialCode,materialName,specification,unit,enabled,remark,colorCode,rawMaterialType,defaultLotSize,minLotSize,maxLotSize,allowDelay,abcClassification,productGroup
@@ -331,7 +375,6 @@ class MaterialServiceTest {
     @DisplayName("导入物料为XLSX时应支持部分成功并生成错误文件")
     void importMaterialsFromExcel_whenPartiallyInvalid_shouldPersistSuccessRowsAndReturnErrorFile() throws Exception {
         Material existing = new Material();
-        AtomicReference<MaterialImportErrorFile> savedErrorFile = new AtomicReference<>();
         existing.setId(UUID.randomUUID());
         existing.setMaterialCode("MAT-001");
         existing.setMaterialName("旧名称");
@@ -339,13 +382,12 @@ class MaterialServiceTest {
         when(materialRepository.findByMaterialCodeIn(argThat(codes -> codes.contains("MAT-001") && codes.contains("MAT-002"))))
                 .thenReturn(java.util.List.of(existing));
         when(materialRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(materialImportErrorFileRepository.save(any(MaterialImportErrorFile.class))).thenAnswer(invocation -> {
-            MaterialImportErrorFile errorFile = invocation.getArgument(0);
-            savedErrorFile.set(errorFile);
-            return errorFile;
-        });
-        when(materialImportErrorFileRepository.findById(any(UUID.class))).thenAnswer(invocation ->
-                Optional.ofNullable(savedErrorFile.get()).filter(file -> file.getId().equals(invocation.getArgument(0))));
+        when(fileObjectService.storeTemporaryFile(any(), any(), any(), any(), any())).thenReturn("token-123");
+        when(fileObjectService.loadTemporaryFile("token-123", "MATERIAL_IMPORT_ERROR"))
+                .thenReturn(new FileObjectService.StoredFile(
+                        "materials-import-errors.csv",
+                        "materialCode,materialName,specification,unit,enabled,remark,colorCode,rawMaterialType,defaultLotSize,minLotSize,maxLotSize,allowDelay,abcClassification,productGroup,errorColumn,errorMessage\nMAT-002,,25kg/袋,kg,true,,,,,,,,,,materialName,物料名称不能为空".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        "text/csv"));
 
         byte[] workbook = createMaterialWorkbook(
                 new String[] {"MAT-001", "更新成功", "", "", "true", "", "", "", "", "", "", "", "", ""},
@@ -367,27 +409,35 @@ class MaterialServiceTest {
     @Test
     @DisplayName("下载过期错误文件时应返回未找到并清理记录")
     void loadImportErrorFile_whenExpired_shouldThrowNotFound() {
-        UUID token = UUID.randomUUID();
-        MaterialImportErrorFile errorFile = new MaterialImportErrorFile();
-        errorFile.setId(token);
-        errorFile.setFileName("materials-import-errors.csv");
-        errorFile.setContent("expired".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        errorFile.setExpiresAt(LocalDateTime.now().minusMinutes(1));
-        when(materialImportErrorFileRepository.findById(token)).thenReturn(Optional.of(errorFile));
+        when(fileObjectService.loadTemporaryFile("token", "MATERIAL_IMPORT_ERROR"))
+                .thenThrow(new ResourceNotFoundException("导入错误文件不存在: token"));
 
-        assertThatThrownBy(() -> materialService.loadImportErrorFile(token.toString()))
+        assertThatThrownBy(() -> materialService.loadImportErrorFile("token"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("导入错误文件不存在");
-
-        verify(materialImportErrorFileRepository).delete(errorFile);
     }
 
     @Test
     @DisplayName("应定时清理过期错误文件")
     void cleanupExpiredImportErrorFiles_shouldDeleteExpiredRecords() {
+        when(scheduledTaskLockService.tryLock("material:file-cleanup", "material-file-cleanup-scheduler")).thenReturn(true);
+
         materialService.cleanupExpiredImportErrorFiles();
 
-        verify(materialImportErrorFileRepository).deleteByExpiresAtBefore(any(LocalDateTime.class));
+        verify(fileObjectService).cleanupExpiredFiles("MATERIAL_IMPORT_ERROR");
+        verify(fileObjectService).cleanupExpiredFiles("MATERIAL_EXPORT");
+        verify(fileObjectService).cleanupExpiredFiles("MATERIAL_TEMPLATE");
+        verify(scheduledTaskLockService).unlock("material:file-cleanup", "material-file-cleanup-scheduler");
+    }
+
+    @Test
+    @DisplayName("未获取到清理锁时不应执行文件清理")
+    void cleanupExpiredImportErrorFiles_shouldSkipWhenLockNotAcquired() {
+        when(scheduledTaskLockService.tryLock("material:file-cleanup", "material-file-cleanup-scheduler")).thenReturn(false);
+
+        materialService.cleanupExpiredImportErrorFiles();
+
+        verify(fileObjectService, never()).cleanupExpiredFiles(any());
     }
 
     private byte[] createMaterialWorkbook(String[]... rows) throws Exception {

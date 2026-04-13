@@ -18,8 +18,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -72,45 +70,6 @@ class MaterialControllerTest {
     }
 
     @Test
-    @DisplayName("导出物料模板应返回CSV文件")
-    void exportMaterials_shouldReturnCsvFile() throws Exception {
-        doAnswer(invocation -> {
-            java.io.OutputStream outputStream = invocation.getArgument(0);
-            outputStream.write("materialCode\nMAT-001".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return null;
-        }).when(materialService).streamExportMaterialsAsCsv(any(java.io.OutputStream.class));
-
-        var response = controller.exportMaterials("csv");
-        var outputStream = new java.io.ByteArrayOutputStream();
-        response.getBody().writeTo(outputStream);
-
-        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getContentType().toString()).contains("text/csv");
-        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getFirst("Content-Disposition")).contains("materials-export.csv");
-        org.assertj.core.api.Assertions.assertThat(outputStream.toString(java.nio.charset.StandardCharsets.UTF_8)).contains("MAT-001");
-        verify(materialService).streamExportMaterialsAsCsv(any(java.io.OutputStream.class));
-    }
-
-    @Test
-    @DisplayName("导出物料模板为XLSX时应返回Excel文件")
-    void exportMaterialsAsExcel_shouldReturnExcelFile() throws Exception {
-        doAnswer(invocation -> {
-            java.io.OutputStream outputStream = invocation.getArgument(0);
-            outputStream.write(new byte[] {1, 2, 3});
-            return null;
-        }).when(materialService).streamExportMaterialsAsExcel(any(java.io.OutputStream.class));
-
-        var response = controller.exportMaterials("xlsx");
-        var outputStream = new java.io.ByteArrayOutputStream();
-        response.getBody().writeTo(outputStream);
-
-        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getContentType().toString())
-                .contains("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getFirst("Content-Disposition")).contains("materials-template.xlsx");
-        org.assertj.core.api.Assertions.assertThat(outputStream.toByteArray()).containsExactly(1, 2, 3);
-        verify(materialService).streamExportMaterialsAsExcel(any(java.io.OutputStream.class));
-    }
-
-    @Test
     @DisplayName("导入物料文件应返回导入统计和错误文件")
     void importMaterials_shouldReturnSummary() throws Exception {
         when(materialService.importMaterials(any(String.class), any(java.io.InputStream.class)))
@@ -146,5 +105,59 @@ class MaterialControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("text/csv")))
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("materials-import-errors.csv")));
+    }
+
+    @Test
+    @DisplayName("创建导出文件应返回文件token")
+    void createExportFile_shouldReturnToken() throws Exception {
+        when(materialService.exportMaterialsToFile("csv"))
+                .thenReturn(new MaterialService.ExportFileResult("materials-export.csv", "export-token"));
+
+        mockMvc.perform(post("/api/materials/export-files")
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fileName").value("materials-export.csv"))
+                .andExpect(jsonPath("$.data.fileToken").value("export-token"));
+    }
+
+    @Test
+    @DisplayName("下载导出文件应返回附件")
+    void downloadExportFile_shouldReturnAttachment() throws Exception {
+        when(materialService.loadExportFile("export-token"))
+                .thenReturn("materialCode\nMAT-001".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(materialService.getExportFileName("export-token")).thenReturn("materials-export.csv");
+
+        mockMvc.perform(get("/api/materials/exports/export-token"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("text/csv")))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("materials-export.csv")));
+    }
+
+    @Test
+    @DisplayName("创建模板文件应返回文件token")
+    void createTemplateFile_shouldReturnToken() throws Exception {
+        when(materialService.exportTemplateToFile("xlsx"))
+                .thenReturn(new MaterialService.ExportFileResult("materials-template.xlsx", "template-token"));
+
+        mockMvc.perform(post("/api/materials/template-files")
+                        .param("format", "xlsx"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fileName").value("materials-template.xlsx"))
+                .andExpect(jsonPath("$.data.fileToken").value("template-token"));
+    }
+
+    @Test
+    @DisplayName("下载模板文件应返回附件")
+    void downloadTemplateFile_shouldReturnAttachment() throws Exception {
+        when(materialService.loadTemplateFile("template-token"))
+                .thenReturn(new byte[] {1, 2, 3});
+        when(materialService.getTemplateFileName("template-token")).thenReturn("materials-template.xlsx");
+
+        mockMvc.perform(get("/api/materials/templates/template-token"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Content-Type",
+                        org.hamcrest.Matchers.containsString("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("materials-template.xlsx")));
     }
 }

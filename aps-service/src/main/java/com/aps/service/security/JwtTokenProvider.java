@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
+import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
@@ -33,14 +35,17 @@ public class JwtTokenProvider {
     /**
      * 生成访问令牌
      */
-    public String generateAccessToken(UUID userId, String username, List<String> roles) {
+    public String generateAccessToken(UUID userId, String username, List<String> roles, UUID sessionId, long sessionVersion) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(username)
-                .claim("userId", userId)
+                .claim("userId", userId.toString())
                 .claim("roles", roles)
+                .claim("sessionId", sessionId.toString())
+                .claim("sessionVersion", sessionVersion)
                 .claim("type", "access")
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -51,13 +56,16 @@ public class JwtTokenProvider {
     /**
      * 生成刷新令牌
      */
-    public String generateRefreshToken(UUID userId, String username) {
+    public String generateRefreshToken(UUID userId, String username, UUID sessionId, long sessionVersion) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshExpiration);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(username)
-                .claim("userId", userId)
+                .claim("userId", userId.toString())
+                .claim("sessionId", sessionId.toString())
+                .claim("sessionVersion", sessionVersion)
                 .claim("type", "refresh")
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -80,6 +88,31 @@ public class JwtTokenProvider {
         Claims claims = parseToken(token);
         String userId = claims.get("userId", String.class);
         return UUID.fromString(userId);
+    }
+
+    public UUID getSessionIdFromToken(String token) {
+        Claims claims = parseToken(token);
+        String sessionId = claims.get("sessionId", String.class);
+        return UUID.fromString(sessionId);
+    }
+
+    public long getSessionVersionFromToken(String token) {
+        Claims claims = parseToken(token);
+        Number sessionVersion = claims.get("sessionVersion", Number.class);
+        return sessionVersion.longValue();
+    }
+
+    public String getTokenId(String token) {
+        return parseToken(token).getId();
+    }
+
+    public Instant getExpiration(String token) {
+        return parseToken(token).getExpiration().toInstant();
+    }
+
+    public Duration getRemainingValidity(String token) {
+        Duration duration = Duration.between(Instant.now(), getExpiration(token));
+        return duration.isNegative() ? Duration.ZERO : duration;
     }
 
     /**

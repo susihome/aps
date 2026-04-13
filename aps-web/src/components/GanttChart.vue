@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Gantt from 'frappe-gantt'
 import 'frappe-gantt/dist/frappe-gantt.css'
 import { useScheduleStore } from '../stores/schedule'
-import { Client } from '@stomp/stompjs'
-import SockJS from 'sockjs-client'
 import { msgError } from '@/utils/message'
+import { useScheduleProgress } from '@/composables/useScheduleProgress'
 
 interface GanttTask {
   id: string
@@ -17,19 +16,18 @@ interface GanttTask {
 }
 
 const scheduleStore = useScheduleStore()
+useScheduleProgress()
 const ganttContainer = ref<HTMLElement>()
 let ganttInstance: Gantt | null = null
-let stompClient: Client | null = null
+const progressStatusText = computed(() => {
+  if (!scheduleStore.currentTaskStatus) {
+    return '未开始'
+  }
+  return scheduleStore.currentTaskStatus
+})
 
 onMounted(() => {
   initGantt()
-  connectWebSocket()
-})
-
-onUnmounted(() => {
-  if (stompClient) {
-    stompClient.deactivate()
-  }
 })
 
 function initGantt() {
@@ -61,37 +59,6 @@ function initGantt() {
     }
   }
 }
-
-function connectWebSocket() {
-  try {
-    stompClient = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws/schedule-progress'),
-      onConnect: () => {
-        stompClient?.subscribe('/topic/schedule/1', (message) => {
-          try {
-            const data = JSON.parse(message.body)
-            if (data.type === 'PROGRESS') {
-              scheduleStore.updateProgress(data.progress)
-            }
-          } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'WebSocket消息解析失败'
-            msgError(errorMessage)
-          }
-        })
-      },
-      onStompError: (frame) => {
-        msgError('WebSocket连接错误')
-      },
-      onWebSocketError: () => {
-        msgError('WebSocket连接失败')
-      }
-    })
-    stompClient.activate()
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'WebSocket初始化失败'
-    msgError(message)
-  }
-}
 </script>
 
 <template>
@@ -101,16 +68,28 @@ function connectWebSocket() {
         type="primary"
         @click="scheduleStore.triggerSolve"
         class="solve-button"
+        :loading="scheduleStore.isSolving"
         aria-label="开始排产"
       >
         开始排产
       </el-button>
-      <el-progress
-        :percentage="scheduleStore.progress"
-        :style="{ width: '300px', marginLeft: '20px' }"
-        :stroke-width="8"
-        aria-label="排产进度"
-      />
+      <div class="progress-panel">
+        <div class="progress-head">
+          <span class="progress-status">{{ progressStatusText }}</span>
+          <span v-if="scheduleStore.currentScheduleId" class="progress-schedule">
+            {{ scheduleStore.currentScheduleId }}
+          </span>
+        </div>
+        <el-progress
+          :percentage="scheduleStore.progress"
+          :stroke-width="8"
+          aria-label="排产进度"
+        />
+        <p class="progress-message">{{ scheduleStore.progressMessage }}</p>
+        <p v-if="scheduleStore.currentScore" class="progress-score">
+          当前评分 {{ scheduleStore.currentScore }}
+        </p>
+      </div>
     </div>
     <div
       ref="ganttContainer"
@@ -181,8 +160,7 @@ function connectWebSocket() {
 }
 
 .toolbar :deep(.el-progress) {
-  flex: 1;
-  min-width: 300px;
+  width: 100%;
 }
 
 .toolbar :deep(.el-progress__text) {
@@ -199,6 +177,47 @@ function connectWebSocket() {
 .toolbar :deep(.el-progress-bar__inner) {
   background: var(--color-primary);
   border-radius: var(--radius-sm);
+}
+
+.progress-panel {
+  display: flex;
+  flex: 1;
+  min-width: 320px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-status {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.04em;
+}
+
+.progress-schedule {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.progress-message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.progress-score {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .gantt-container {
@@ -268,12 +287,15 @@ function connectWebSocket() {
   }
 
   .toolbar :deep(.el-progress) {
-    margin-left: 0 !important;
-    width: 100% !important;
     min-width: 0;
   }
 
   .solve-button {
+    width: 100%;
+  }
+
+  .progress-panel {
+    min-width: 0;
     width: 100%;
   }
 }

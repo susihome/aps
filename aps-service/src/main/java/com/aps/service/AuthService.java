@@ -12,11 +12,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,6 +31,8 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final AuthSessionService authSessionService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * 用户登录
@@ -38,7 +41,7 @@ public class AuthService {
     public LoginResult login(String username, String password) {
         try {
             // 验证用户名和密码
-            Authentication authentication = authenticationManager.authenticate(
+            authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password)
             );
 
@@ -51,9 +54,14 @@ public class AuthService {
                     .map(Role::getName)
                     .collect(Collectors.toList());
 
+            long sessionVersion = authSessionService.getOrCreateSessionVersion(user.getId());
+            UUID sessionId = UUID.randomUUID();
+
             // 生成 JWT tokens
-            String accessToken = tokenProvider.generateAccessToken(user.getId(), username, roles);
-            String refreshToken = tokenProvider.generateRefreshToken(user.getId(), username);
+            String accessToken = tokenProvider.generateAccessToken(user.getId(), username, roles, sessionId, sessionVersion);
+            String refreshToken = tokenProvider.generateRefreshToken(user.getId(), username, sessionId, sessionVersion);
+            authSessionService.createSession(sessionId, user.getId(), username, tokenProvider.getTokenId(refreshToken),
+                    sessionVersion, tokenProvider.getExpiration(refreshToken));
 
             // 更新最后登录时间
             userService.updateLastLoginTime(user.getId());
@@ -82,6 +90,9 @@ public class AuthService {
 
         String username = tokenProvider.getUsernameFromToken(refreshToken);
         UUID userId = tokenProvider.getUserIdFromToken(refreshToken);
+        UUID sessionId = tokenProvider.getSessionIdFromToken(refreshToken);
+        long sessionVersion = tokenProvider.getSessionVersionFromToken(refreshToken);
+        authSessionService.validateRefreshSession(userId, sessionId, tokenProvider.getTokenId(refreshToken), sessionVersion);
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
@@ -96,7 +107,7 @@ public class AuthService {
                 .collect(Collectors.toList());
 
         // 生成新的访问令牌
-        String newAccessToken = tokenProvider.generateAccessToken(userId, username, roles);
+        String newAccessToken = tokenProvider.generateAccessToken(userId, username, roles, sessionId, sessionVersion);
 
         log.debug("刷新令牌成功: {}", username);
         return new LoginResult(newAccessToken, refreshToken, user);
@@ -109,9 +120,73 @@ public class AuthService {
         return tokenProvider.validateToken(token);
     }
 
+    @Transactional
+    public void logout(String accessToken, String refreshToken) {
+        blacklistAccessToken(accessToken);
+        revokeRefreshSession(refreshToken);
+    }
+
+    @Transactional
+    public void logoutAll(UUID userId, String accessToken) {
+        blacklistAccessToken(accessToken);
+        authSessionService.revokeAllUserSessions(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SessionView> listSessions(UUID userId, String accessToken) {
+        UUID currentSessionId = extractCurrentSessionId(accessToken);
+        return authSessionService.listActiveSessions(userId, currentSessionId);
+    }
+
+    @Transactional
+    public void revokeSession(UUID userId, UUID sessionId) {
+        authSessionService.revokeSession(userId, sessionId);
+    }
+
+    public boolean isCurrentSession(String accessToken, UUID sessionId) {
+        UUID currentSessionId = extractCurrentSessionId(accessToken);
+        return sessionId.equals(currentSessionId);
+    }
+
+    private void blacklistAccessToken(String accessToken) {
+        if (accessToken == null || !tokenProvider.validateToken(accessToken) || tokenProvider.isRefreshToken(accessToken)) {
+            return;
+        }
+        Duration remainingValidity = tokenProvider.getRemainingValidity(accessToken);
+        tokenBlacklistService.blacklist(tokenProvider.getTokenId(accessToken), remainingValidity);
+    }
+
+    private void revokeRefreshSession(String refreshToken) {
+        if (refreshToken == null || !tokenProvider.validateToken(refreshToken) || !tokenProvider.isRefreshToken(refreshToken)) {
+            return;
+        }
+        authSessionService.revokeSession(tokenProvider.getUserIdFromToken(refreshToken),
+                tokenProvider.getSessionIdFromToken(refreshToken));
+    }
+
+    private UUID extractCurrentSessionId(String accessToken) {
+        if (accessToken == null || !tokenProvider.validateToken(accessToken) || tokenProvider.isRefreshToken(accessToken)) {
+            return null;
+        }
+        return tokenProvider.getSessionIdFromToken(accessToken);
+    }
+
     /**
      * 登录结果
      */
     public record LoginResult(String accessToken, String refreshToken, User user) {
+    }
+
+    public record SessionView(
+            UUID sessionId,
+            String username,
+            String clientType,
+            String clientIp,
+            String userAgent,
+            LocalDateTime createTime,
+            LocalDateTime expiresAt,
+            LocalDateTime lastAccessAt,
+            boolean current
+    ) {
     }
 }

@@ -2,6 +2,18 @@ import axiosInstance from './axios'
 import type { AjaxResult } from './types'
 import type { LoginRequest, LoginResponse, User } from '../types/auth'
 
+export interface UserSession {
+  sessionId: string
+  username: string
+  clientType: string | null
+  clientIp: string | null
+  userAgent: string | null
+  createTime: string
+  expiresAt: string
+  lastAccessAt: string | null
+  current: boolean
+}
+
 export const authApi = {
   /**
    * 用户登录
@@ -44,5 +56,27 @@ export const authApi = {
       throw new Error(response.data.message || '获取用户信息失败')
     }
     return response.data.data
+  },
+
+  async listSessions(): Promise<UserSession[]> {
+    const response = await axiosInstance.get<AjaxResult<UserSession[]>>('/auth/sessions')
+    if (response.data.code !== 200 || !response.data.data) {
+      throw new Error(response.data.message || '获取会话列表失败')
+    }
+    return response.data.data
+  },
+
+  async revokeSession(sessionId: string): Promise<void> {
+    const response = await axiosInstance.delete<AjaxResult<void>>(`/auth/sessions/${sessionId}`)
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '撤销会话失败')
+    }
+  },
+
+  async logoutAll(): Promise<void> {
+    const response = await axiosInstance.post<AjaxResult<void>>('/auth/logout-all')
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '退出全部设备失败')
+    }
   }
 }

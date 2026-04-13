@@ -4,6 +4,7 @@ import com.aps.api.dto.AjaxResult;
 import com.aps.api.dto.LoginRequest;
 import com.aps.api.dto.LoginResponse;
 import com.aps.api.dto.UserDto;
+import com.aps.api.security.UserPrincipal;
 import com.aps.domain.entity.User;
 import com.aps.domain.enums.AuditAction;
 import com.aps.service.AuditService;
@@ -20,6 +21,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -35,6 +40,9 @@ public class AuthController {
 
     @Value("${jwt.cookie.secure:false}")
     private boolean cookieSecure;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshExpiration;
 
     /**
      * 用户登录
@@ -93,12 +101,11 @@ public class AuthController {
     public AjaxResult<Void> logout(HttpServletRequest httpRequest,
                                    HttpServletResponse httpResponse) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        authService.logout(getCookieValue(httpRequest, "accessToken"), getCookieValue(httpRequest, "refreshToken"));
+        clearAuthCookies(httpResponse);
 
         if (authentication != null && authentication.isAuthenticated()) {
             String username = authentication.getName();
-
-            // 清除 cookies
-            clearAuthCookies(httpResponse);
 
             // 记录审计日志
             String ipAddress = getClientIpAddress(httpRequest);
@@ -112,6 +119,78 @@ public class AuthController {
             );
 
             log.info("用户登出: {}", username);
+        }
+
+        return AjaxResult.success();
+    }
+
+    @PostMapping("/logout-all")
+    public AjaxResult<Void> logoutAll(HttpServletRequest httpRequest,
+                                      HttpServletResponse httpResponse) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        clearAuthCookies(httpResponse);
+
+        if (authentication != null && authentication.isAuthenticated()) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof UserPrincipal userPrincipal) {
+                authService.logoutAll(userPrincipal.getId(), getCookieValue(httpRequest, "accessToken"));
+
+                String ipAddress = getClientIpAddress(httpRequest);
+                auditService.logAudit(
+                        userPrincipal.getId(),
+                        userPrincipal.getUsername(),
+                        AuditAction.LOGOUT,
+                        "auth",
+                        "用户登出全部设备",
+                        ipAddress
+                );
+
+                log.info("用户登出全部设备: {}", userPrincipal.getUsername());
+            }
+        }
+
+        return AjaxResult.success();
+    }
+
+    @GetMapping("/sessions")
+    public AjaxResult<List<SessionResponse>> listSessions(HttpServletRequest httpRequest) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return AjaxResult.error(401, "未认证", null);
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof UserPrincipal userPrincipal)) {
+            return AjaxResult.error(401, "未认证", null);
+        }
+
+        List<SessionResponse> sessions = authService.listSessions(
+                        userPrincipal.getId(),
+                        getCookieValue(httpRequest, "accessToken"))
+                .stream()
+                .map(SessionResponse::from)
+                .toList();
+        return AjaxResult.success(sessions);
+    }
+
+    @DeleteMapping("/sessions/{sessionId}")
+    public AjaxResult<Void> revokeSession(@PathVariable UUID sessionId,
+                                          HttpServletRequest httpRequest,
+                                          HttpServletResponse httpResponse) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return AjaxResult.error(401, "未认证", null);
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof UserPrincipal userPrincipal)) {
+            return AjaxResult.error(401, "未认证", null);
+        }
+
+        String accessToken = getCookieValue(httpRequest, "accessToken");
+        authService.revokeSession(userPrincipal.getId(), sessionId);
+        if (authService.isCurrentSession(accessToken, sessionId)) {
+            clearAuthCookies(httpResponse);
         }
 
         return AjaxResult.success();
@@ -163,7 +242,7 @@ public class AuthController {
         cookie.setHttpOnly(true);
         cookie.setSecure(cookieSecure);
         cookie.setPath("/");
-        cookie.setMaxAge(7 * 24 * 60 * 60); // 7天
+        cookie.setMaxAge((int) (refreshExpiration / 1000));
         response.addCookie(cookie);
     }
 
@@ -184,6 +263,19 @@ public class AuthController {
         response.addCookie(refreshTokenCookie);
     }
 
+    private String getCookieValue(HttpServletRequest request, String cookieName) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie cookie : cookies) {
+            if (cookieName.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
+    }
+
     /**
      * 获取客户端 IP 地址
      */
@@ -199,5 +291,31 @@ public class AuthController {
             return "127.0.0.1";
         }
         return ip;
+    }
+
+    public record SessionResponse(
+            UUID sessionId,
+            String username,
+            String clientType,
+            String clientIp,
+            String userAgent,
+            LocalDateTime createTime,
+            LocalDateTime expiresAt,
+            LocalDateTime lastAccessAt,
+            boolean current
+    ) {
+        private static SessionResponse from(AuthService.SessionView session) {
+            return new SessionResponse(
+                    session.sessionId(),
+                    session.username(),
+                    session.clientType(),
+                    session.clientIp(),
+                    session.userAgent(),
+                    session.createTime(),
+                    session.expiresAt(),
+                    session.lastAccessAt(),
+                    session.current()
+            );
+        }
     }
 }

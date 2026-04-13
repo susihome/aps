@@ -18,7 +18,7 @@ public class SolveEventListener {
     @EventListener
     public void handleSolveStarted(ScheduleService.SolveStartedEvent event) {
         log.info("求解开始事件: {}", event.scheduleId());
-        progressPublisher.publishProgress(event.scheduleId(), 0, "开始求解");
+        progressPublisher.publishProgress(event.scheduleId(), 0, "开始求解", null);
     }
 
     @Async
@@ -26,7 +26,7 @@ public class SolveEventListener {
     public void handleSolveProgress(ScheduleService.SolveProgressEvent event) {
         log.debug("求解进度事件: {}, Score: {}", event.scheduleId(), event.currentScore());
         // 这里可以计算进度百分比，暂时使用固定值
-        progressPublisher.publishProgress(event.scheduleId(), 50, event.currentScore());
+        progressPublisher.publishProgress(event.scheduleId(), 50, "求解中", event.currentScore());
     }
 
     @Async

@@ -17,7 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 import java.util.UUID;
@@ -45,23 +44,6 @@ public class MaterialController {
     public AjaxResult<MaterialDto> getMaterial(@PathVariable UUID id) {
         Material material = materialService.getMaterialById(id);
         return AjaxResult.success(MaterialDto.fromEntity(material));
-    }
-
-    @GetMapping("/export")
-    @PreAuthorize("hasAuthority('basedata:material:list')")
-    public ResponseEntity<StreamingResponseBody> exportMaterials(@RequestParam(defaultValue = "xlsx") String format) {
-        if ("csv".equalsIgnoreCase(format)) {
-            StreamingResponseBody body = outputStream -> materialService.streamExportMaterialsAsCsv(outputStream);
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"materials-export.csv\"")
-                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-                    .body(body);
-        }
-        StreamingResponseBody body = outputStream -> materialService.streamExportMaterialsAsExcel(outputStream);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"materials-template.xlsx\"")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(body);
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -93,6 +75,46 @@ public class MaterialController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + materialService.getImportErrorFileName(token) + "\"")
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .body(materialService.loadImportErrorFile(token));
+    }
+
+    @PostMapping("/export-files")
+    @PreAuthorize("hasAuthority('basedata:material:list')")
+    public AjaxResult<ExportFileResponse> createExportFile(@RequestParam(defaultValue = "xlsx") String format) {
+        MaterialService.ExportFileResult result = materialService.exportMaterialsToFile(format);
+        return AjaxResult.success(new ExportFileResponse(result.fileName(), result.fileToken()));
+    }
+
+    @GetMapping("/exports/{token}")
+    @PreAuthorize("hasAuthority('basedata:material:list')")
+    public ResponseEntity<byte[]> downloadExportFile(@PathVariable String token) {
+        String fileName = materialService.getExportFileName(token);
+        MediaType contentType = fileName.endsWith(".csv")
+                ? MediaType.parseMediaType("text/csv; charset=UTF-8")
+                : MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentType(contentType)
+                .body(materialService.loadExportFile(token));
+    }
+
+    @PostMapping("/template-files")
+    @PreAuthorize("hasAuthority('basedata:material:list')")
+    public AjaxResult<ExportFileResponse> createTemplateFile(@RequestParam(defaultValue = "xlsx") String format) {
+        MaterialService.ExportFileResult result = materialService.exportTemplateToFile(format);
+        return AjaxResult.success(new ExportFileResponse(result.fileName(), result.fileToken()));
+    }
+
+    @GetMapping("/templates/{token}")
+    @PreAuthorize("hasAuthority('basedata:material:list')")
+    public ResponseEntity<byte[]> downloadTemplateFile(@PathVariable String token) {
+        String fileName = materialService.getTemplateFileName(token);
+        MediaType contentType = fileName.endsWith(".csv")
+                ? MediaType.parseMediaType("text/csv; charset=UTF-8")
+                : MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentType(contentType)
+                .body(materialService.loadTemplateFile(token));
     }
 
     @PostMapping
@@ -182,5 +204,8 @@ public class MaterialController {
         public MaterialImportResponse {
             failures = List.copyOf(failures);
         }
+    }
+
+    public record ExportFileResponse(String fileName, String fileToken) {
     }
 }

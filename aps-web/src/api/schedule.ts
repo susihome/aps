@@ -12,7 +12,28 @@ export interface Schedule {
   updateTime?: string
 }
 
+export interface SolverTask {
+  taskId: string
+  scheduleId: string
+  taskType: string
+  triggerSource: string
+  status: string
+  score?: string | null
+  progress?: number | null
+  errorMessage?: string | null
+  startedAt?: string | null
+  finishedAt?: string | null
+}
+
 export const scheduleApi = {
+  async create(): Promise<Schedule> {
+    const response = await axiosInstance.post<AjaxResult<Schedule>>('/schedules', {})
+    if (response.data.code !== 200 || !response.data.data) {
+      throw new Error(response.data.message || '创建排产方案失败')
+    }
+    return response.data.data
+  },
+
   /**
    * 获取排产方案列表
    */
@@ -38,11 +59,12 @@ export const scheduleApi = {
   /**
    * 开始求解
    */
-  async solve(id: string): Promise<void> {
-    const response = await axiosInstance.post<AjaxResult<void>>(`/schedules/${id}/solve`)
-    if (response.data.code !== 200) {
+  async solve(id: string): Promise<SolverTask> {
+    const response = await axiosInstance.post<AjaxResult<SolverTask>>(`/schedules/${id}/solve`)
+    if (response.data.code !== 200 || !response.data.data) {
       throw new Error(response.data.message || '开始求解失败')
     }
+    return response.data.data
   },
 
   /**
@@ -53,5 +75,13 @@ export const scheduleApi = {
     if (response.data.code !== 200) {
       throw new Error(response.data.message || '停止求解失败')
     }
+  },
+
+  async getLatestSolverTask(id: string): Promise<SolverTask> {
+    const response = await axiosInstance.get<AjaxResult<SolverTask>>(`/schedules/${id}/solver-tasks/latest`)
+    if (response.data.code !== 200 || !response.data.data) {
+      throw new Error(response.data.message || '获取最近排产任务失败')
+    }
+    return response.data.data
   }
 }

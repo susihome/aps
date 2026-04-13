@@ -72,6 +72,11 @@ export interface MaterialImportFailure {
   message: string
 }
 
+export interface ExportFileInfo {
+  fileName: string
+  fileToken: string
+}
+
 function unwrap<T>(result: AjaxResult<T>): T {
   if (result.code !== 200 || result.data == null) {
     throw new Error(result.message || '请求失败')
@@ -110,9 +115,15 @@ export const materialApi = {
     }
   },
 
-  exportFile: async (format: 'csv' | 'xlsx' = 'xlsx'): Promise<AxiosResponse<Blob>> => {
-    return axiosInstance.get('/materials/export', {
+  createTemplateFile: async (format: 'csv' | 'xlsx' = 'xlsx') => {
+    const { data } = await axiosInstance.post<AjaxResult<ExportFileInfo>>('/materials/template-files', null, {
       params: { format },
+    })
+    return unwrap(data)
+  },
+
+  downloadTemplateFile: async (token: string): Promise<AxiosResponse<Blob>> => {
+    return axiosInstance.get(`/materials/templates/${token}`, {
       responseType: 'blob',
     })
   },

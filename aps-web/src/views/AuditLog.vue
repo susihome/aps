@@ -124,7 +124,7 @@
               <el-icon><Refresh /></el-icon>
               <span>重置</span>
             </el-button>
-            <el-button type="success" @click="handleExport">
+            <el-button type="success" :loading="exporting" @click="handleExport">
               <el-icon><Download /></el-icon>
               <span>导出</span>
             </el-button>
@@ -184,7 +184,7 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { msgSuccess, msgError } from '@/utils/message'
 import { Search, Refresh, Download, Document, User, Operation } from '@element-plus/icons-vue'
-import { searchAuditLogs, exportAuditLogs, getStatistics, type AuditLog } from '@/api/audit'
+import { searchAuditLogs, createAuditExportFile, downloadAuditExportFile, getStatistics, type AuditLog } from '@/api/audit'
 import { dictionaryApi, type DictItem } from '@/api/dictionary'
 import * as echarts from 'echarts'
 
@@ -203,6 +203,7 @@ const pagination = reactive({
 
 const auditLogs = ref<AuditLog[]>([])
 const loading = ref(false)
+const exporting = ref(false)
 const totalLogs = ref(0)
 const activeUsers = ref(0)
 const totalActions = ref(0)
@@ -333,6 +334,10 @@ const handleReset = () => {
 }
 
 const handleExport = async () => {
+  if (exporting.value) {
+    return
+  }
+  exporting.value = true
   try {
     let startTime: string | undefined
     let endTime: string | undefined
@@ -342,17 +347,26 @@ const handleExport = async () => {
       endTime = searchForm.timeRange[1].toISOString()
     }
 
-    const response = await exportAuditLogs(startTime, endTime)
+    const createResponse = await createAuditExportFile(startTime, endTime)
+    if (createResponse.data.code !== 200 || !createResponse.data.data) {
+      throw new Error(createResponse.data.message || '创建导出文件失败')
+    }
+    const fileInfo = createResponse.data.data
+    const response = await downloadAuditExportFile(fileInfo.fileToken)
     const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `audit_logs_${new Date().getTime()}.csv`
+    const disposition = String(response.headers['content-disposition'] ?? '')
+    const matched = disposition.match(/filename="?([^"]+)"?/)
+    link.download = matched?.[1] ?? fileInfo.fileName
     link.click()
     window.URL.revokeObjectURL(url)
     msgSuccess('导出成功')
   } catch (error) {
     msgError('导出失败')
+  } finally {
+    exporting.value = false
   }
 }
 

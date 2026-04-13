@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -29,7 +30,11 @@ import java.util.UUID;
 @Slf4j
 public class AuditService {
 
+    private static final String AUDIT_EXPORT_BUSINESS_TYPE = "AUDIT_EXPORT";
+    private static final Duration AUDIT_EXPORT_FILE_TTL = Duration.ofHours(24);
+
     private final AuditLogRepository auditLogRepository;
+    private final FileObjectService fileObjectService;
     private static final DateTimeFormatter CSV_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
@@ -180,6 +185,29 @@ public class AuditService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public ExportFileResult exportAuditLogsToFile(LocalDateTime startTime, LocalDateTime endTime) {
+        byte[] csvData = exportAuditLogs(startTime, endTime);
+        String fileName = "audit_logs_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv";
+        String fileToken = fileObjectService.storeTemporaryFile(
+                AUDIT_EXPORT_BUSINESS_TYPE,
+                fileName,
+                csvData,
+                AUDIT_EXPORT_FILE_TTL,
+                "text/csv");
+        return new ExportFileResult(fileName, fileToken);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] loadExportFile(String token) {
+        return fileObjectService.loadTemporaryFile(token, AUDIT_EXPORT_BUSINESS_TYPE).content();
+    }
+
+    @Transactional(readOnly = true)
+    public String getExportFileName(String token) {
+        return fileObjectService.loadTemporaryFile(token, AUDIT_EXPORT_BUSINESS_TYPE).fileName();
+    }
+
     /**
      * CSV字段转义（所有字段都用双引号包裹以安全处理逗号）
      */
@@ -188,5 +216,8 @@ public class AuditService {
             return "";
         }
         return value.replace("\"", "\"\"").replace("\n", " ").replace("\r", "");
+    }
+
+    public record ExportFileResult(String fileName, String fileToken) {
     }
 }
