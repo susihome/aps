@@ -15,6 +15,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -66,6 +67,22 @@ public class AssignmentPlanningModel implements Comparable<AssignmentPlanningMod
             return 0;
         }
         return this.assignmentId.compareTo(other.assignmentId);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof AssignmentPlanningModel other)) {
+            return false;
+        }
+        return Objects.equals(this.assignmentId, other.assignmentId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(assignmentId);
     }
 
     /**

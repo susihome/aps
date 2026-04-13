@@ -1,6 +1,5 @@
 package com.aps.service;
 
-import com.aps.domain.entity.DictItem;
 import com.aps.domain.entity.DictType;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;

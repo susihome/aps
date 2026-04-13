@@ -4,12 +4,20 @@ import com.aps.api.dto.AjaxResult;
 import com.aps.api.dto.MaterialDto;
 import com.aps.domain.entity.Material;
 import com.aps.service.MaterialService;
+import com.aps.service.exception.ValidationException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,8 +31,12 @@ public class MaterialController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('basedata:material:list')")
-    public AjaxResult<List<MaterialDto>> getAllMaterials() {
-        List<Material> materials = materialService.getAllMaterials();
+    public AjaxResult<List<MaterialDto>> getAllMaterials(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) Integer limit) {
+        List<Material> materials = keyword == null || keyword.trim().isEmpty()
+                ? materialService.getAllMaterials()
+                : materialService.searchMaterials(keyword, limit);
         return AjaxResult.success(materials.stream().map(MaterialDto::fromEntity).toList());
     }
 
@@ -33,6 +45,54 @@ public class MaterialController {
     public AjaxResult<MaterialDto> getMaterial(@PathVariable UUID id) {
         Material material = materialService.getMaterialById(id);
         return AjaxResult.success(MaterialDto.fromEntity(material));
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("hasAuthority('basedata:material:list')")
+    public ResponseEntity<StreamingResponseBody> exportMaterials(@RequestParam(defaultValue = "xlsx") String format) {
+        if ("csv".equalsIgnoreCase(format)) {
+            StreamingResponseBody body = outputStream -> materialService.streamExportMaterialsAsCsv(outputStream);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"materials-export.csv\"")
+                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                    .body(body);
+        }
+        StreamingResponseBody body = outputStream -> materialService.streamExportMaterialsAsExcel(outputStream);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"materials-template.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('basedata:material:add') and hasAuthority('basedata:material:edit')")
+    public AjaxResult<MaterialImportResponse> importMaterials(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new ValidationException("导入文件不能为空");
+        }
+        try {
+            MaterialService.MaterialImportResult result = materialService.importMaterials(file.getOriginalFilename(), file.getInputStream());
+            return AjaxResult.success(new MaterialImportResponse(
+                    result.totalCount(),
+                    result.createdCount(),
+                    result.updatedCount(),
+                    result.failedCount(),
+                    result.failures(),
+                    result.errorFileName(),
+                    result.errorFileToken()
+            ));
+        } catch (java.io.IOException exception) {
+            throw new ValidationException("读取导入文件失败");
+        }
+    }
+
+    @GetMapping("/import-errors/{token}")
+    @PreAuthorize("hasAuthority('basedata:material:add') and hasAuthority('basedata:material:edit')")
+    public ResponseEntity<byte[]> downloadImportErrorFile(@PathVariable String token) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + materialService.getImportErrorFileName(token) + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(materialService.loadImportErrorFile(token));
     }
 
     @PostMapping
@@ -108,5 +168,19 @@ public class MaterialController {
             Boolean allowDelay,
             @Size(max = 1, message = "ABC分类只能为单个字母") String abcClassification,
             @Size(max = 32, message = "产品组长度不能超过32") String productGroup) {
+    }
+
+    public record MaterialImportResponse(
+            int totalCount,
+            int createdCount,
+            int updatedCount,
+            int failedCount,
+            List<MaterialService.MaterialImportFailure> failures,
+            String errorFileName,
+            String errorFileToken
+    ) {
+        public MaterialImportResponse {
+            failures = List.copyOf(failures);
+        }
     }
 }

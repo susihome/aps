@@ -5,6 +5,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -29,5 +30,21 @@ public class UserPrincipal extends User {
         super(username, password, enabled, accountNonExpired,
                 credentialsNonExpired, accountNonLocked, authorities);
         this.id = id;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof UserPrincipal other)) {
+            return false;
+        }
+        return super.equals(obj) && Objects.equals(id, other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), id);
     }
 }

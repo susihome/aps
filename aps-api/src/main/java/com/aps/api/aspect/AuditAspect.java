@@ -2,10 +2,8 @@ package com.aps.api.aspect;
 
 import com.aps.domain.annotation.Audited;
 import com.aps.api.security.UserPrincipal;
-import com.aps.domain.enums.AuditAction;
 import com.aps.service.AuditService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

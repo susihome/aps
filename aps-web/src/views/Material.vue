@@ -7,10 +7,27 @@
           <h2>物料管理</h2>
           <p>维护注塑生产所需的物料基础数据</p>
         </div>
-        <el-button v-if="canAdd" type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>
-          新增物料
-        </el-button>
+        <div class="header-actions">
+          <el-button v-if="canList" :loading="exporting" @click="handleExport">
+            <el-icon><Download /></el-icon>
+            导出模板.xlsx
+          </el-button>
+          <el-button v-if="canImport" :loading="importing" @click="triggerImport">
+            <el-icon><Upload /></el-icon>
+            导入
+          </el-button>
+          <el-button v-if="canAdd" type="primary" @click="openDialog()">
+            <el-icon><Plus /></el-icon>
+            新增物料
+          </el-button>
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            class="hidden-file-input"
+            @change="handleFileChange"
+          />
+        </div>
       </div>
 
       <div class="page-card">
@@ -147,6 +164,23 @@
           <el-button type="primary" @click="saveMaterial" :loading="formSaving" :disabled="!isDirty">保存</el-button>
         </template>
       </el-dialog>
+
+      <el-dialog v-model="importFailureDialogVisible" title="导入失败明细" width="760px">
+        <el-alert
+          :type="importFailures.length > 0 ? 'warning' : 'info'"
+          show-icon
+          :closable="false"
+          :title="importFailureDialogTitle"
+        />
+        <div class="import-failure-actions" v-if="importErrorFileName && importErrorFileToken">
+          <el-button type="primary" @click="downloadImportErrorFile">下载错误文件</el-button>
+        </div>
+        <el-table :data="importFailures" stripe class="import-failure-table">
+          <el-table-column prop="rowNumber" label="行号" width="100" />
+          <el-table-column prop="columnName" label="字段" width="160" />
+          <el-table-column prop="message" label="失败原因" min-width="320" />
+        </el-table>
+      </el-dialog>
     </template>
   </div>
 </template>
@@ -154,8 +188,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { materialApi, type CreateMaterialRequest, type Material, type UpdateMaterialRequest } from '@/api/material'
+import { Download, Plus, Upload } from '@element-plus/icons-vue'
+import { materialApi, type CreateMaterialRequest, type Material, type MaterialImportFailure, type UpdateMaterialRequest } from '@/api/material'
 import { dictionaryApi, type DictItem } from '@/api/dictionary'
 import { useAuthStore } from '@/stores/auth'
 import { confirmDanger, extractErrorMsg, msgError, msgSuccess } from '@/utils/message'
@@ -165,18 +199,26 @@ const canList = authStore.hasPermission('basedata:material:list')
 const canAdd = authStore.hasPermission('basedata:material:add')
 const canEdit = authStore.hasPermission('basedata:material:edit')
 const canRemove = authStore.hasPermission('basedata:material:remove')
+const canImport = canAdd && canEdit
 const canAccess = canList || canAdd || canEdit || canRemove
 
 const loading = ref(false)
 const formSaving = ref(false)
 const deletingId = ref<string | null>(null)
+const exporting = ref(false)
+const importing = ref(false)
 const materials = ref<Material[]>([])
 const keyword = ref('')
 const dialogVisible = ref(false)
 const editingMaterial = ref<Material | null>(null)
 const formRef = ref<FormInstance>()
+const fileInputRef = ref<HTMLInputElement>()
 const form = ref(createForm())
 const initialFormSnapshot = ref('')
+const importFailureDialogVisible = ref(false)
+const importFailures = ref<MaterialImportFailure[]>([])
+const importErrorFileName = ref<string | null>(null)
+const importErrorFileToken = ref<string | null>(null)
 const colorOptions = ref<DictItem[]>([])
 const rawMaterialOptions = ref<DictItem[]>([])
 const colorLabelMap = ref<Record<string, string>>({})
@@ -215,6 +257,12 @@ const filteredMaterials = computed(() => {
 })
 
 const isDirty = computed(() => initialFormSnapshot.value !== '' && initialFormSnapshot.value !== serializeForm())
+const importFailureDialogTitle = computed(() => {
+  if (importFailures.value.length === 0) {
+    return '导入已完成'
+  }
+  return `部分数据已导入，仍有 ${importFailures.value.length} 条失败，请下载错误文件修正后重试`
+})
 
 onMounted(async () => {
   await Promise.all([loadMaterials(), loadDictOptions()])
@@ -452,6 +500,89 @@ async function removeMaterial(material: Material) {
     deletingId.value = null
   }
 }
+
+function triggerImport() {
+  if (importing.value) {
+    return
+  }
+  fileInputRef.value?.click()
+}
+
+async function handleExport() {
+  if (exporting.value) {
+    return
+  }
+  exporting.value = true
+  try {
+    const response = await materialApi.exportFile('xlsx')
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const disposition = String(response.headers['content-disposition'] ?? '')
+    const matched = disposition.match(/filename="?([^"]+)"?/)
+    const fileName = matched?.[1] ?? 'materials-template.xlsx'
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    msgSuccess('物料模板已导出')
+  } catch (error: unknown) {
+    msgError(extractErrorMsg(error, '导出物料模板失败'))
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    return
+  }
+  importing.value = true
+  importFailures.value = []
+  importErrorFileName.value = null
+  importErrorFileToken.value = null
+  try {
+    const result = await materialApi.importFile(file)
+    if (result.failedCount > 0) {
+      importFailures.value = result.failures
+      importErrorFileName.value = result.errorFileName
+      importErrorFileToken.value = result.errorFileToken
+      importFailureDialogVisible.value = true
+      msgSuccess(`导入完成：成功 ${result.createdCount + result.updatedCount} 条，失败 ${result.failedCount} 条`)
+    } else {
+      msgSuccess(`导入完成：共 ${result.totalCount} 条，新增 ${result.createdCount} 条，更新 ${result.updatedCount} 条`)
+    }
+    await loadMaterials()
+  } catch (error: unknown) {
+    msgError(extractErrorMsg(error, '导入物料失败'))
+  } finally {
+    importing.value = false
+    input.value = ''
+  }
+}
+
+function downloadImportErrorFile() {
+  if (!importErrorFileName.value || !importErrorFileToken.value) {
+    return
+  }
+  materialApi.downloadImportErrorFile(importErrorFileToken.value).then(response => {
+    const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = importErrorFileName.value as string
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  }).catch((error: unknown) => {
+    msgError(extractErrorMsg(error, '下载错误文件失败'))
+  })
+}
 </script>
 
 <style scoped>
@@ -466,6 +597,12 @@ async function removeMaterial(material: Material) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .page-header h2 {
@@ -492,6 +629,20 @@ async function removeMaterial(material: Material) {
 
 .search-input {
   width: 320px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.import-failure-table {
+  margin-top: 16px;
+}
+
+.import-failure-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .form-section-title {

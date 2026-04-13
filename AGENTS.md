@@ -450,3 +450,49 @@ public class MyController {
 - [ ] 数据流契约显式声明（`defineProps`、`defineEmits` 带类型）
 - [ ] 复用/复杂逻辑已提取为 composable
 - [ ] 性能优化在功能完成后才做
+
+## Recommended Skills
+
+### Java / Spring Boot 默认 Skill 组合
+
+- **常规后端开发**：优先按 `spring-boot-engineer` 的工作方式执行；涉及接口、事务、JPA、配置绑定时默认遵循该技能约束
+- **后端测试驱动开发**：新增功能、修复 Bug、重构 Service 时优先使用 `springboot-tdd`；通用场景可使用 `tdd`
+- **安全相关改动**：认证、授权、JWT、审计、接口暴露面调整时优先使用 `springboot-security`
+- **代码整理与重构**：消除重复、移除死代码、整理 Service/Controller 职责时优先使用 `clean-code`
+- **提交前审查**：较大改动、权限逻辑、求解器逻辑调整后优先执行 `code-review` 或 `requesting-code-review`
+
+### Vue 默认 Skill 组合
+
+- **所有 Vue 任务**：默认使用 `vue-best-practices`，除非项目明确要求其他范式
+- **SFC 与组合式 API 开发**：组件、页面、Pinia、Vite、TypeScript 联动开发时配合 `vue`
+- **路由与权限导航**：路由守卫、布局路由、菜单导航、权限跳转相关改动时配合 `vue-router-best-practices`
+- **复用状态逻辑**：当页面逻辑适合抽离为 composable 时优先参考 `vueuse-functions`
+- **界面重构与视觉优化**：页面视觉升级、列表页/表单页布局优化时使用 `frontend-design`
+- **提交前审查**：较大前端改动完成后执行 `code-review`
+
+## Additional Project Rules
+
+### Java / Spring Boot 补充规则
+
+- Controller 只负责 HTTP 协议编排、参数校验和返回 DTO，复杂业务流程必须下沉到 Service
+- API 层禁止直接返回 JPA Entity；DTO、Entity、前端类型契约必须分离
+- Repository 仅承担持久化访问和查询表达，不承载领域判断、权限判断或复杂编排
+- 所有写接口必须明确输入校验、错误语义和审计边界；禁止用裸 `RuntimeException` 表达业务错误
+- Flyway 迁移只允许追加新版本，禁止修改已发布历史脚本
+- 涉及 Timefold 约束、规划实体、求解模型转换的改动，必须补对应测试，至少覆盖约束行为或转换正确性
+
+### Vue / TypeScript 补充规则
+
+- View 组件默认只做页面编排，业务状态、请求副作用和复用逻辑优先下沉到 composable 或 feature 组件
+- 前端 API 调用统一收敛到 `src/api`，禁止在页面或通用组件里直接散写 `axios` 调用
+- 业务展示文案、枚举标签、下拉选项优先走字典或统一映射；纯 UI 样式映射可局部保留
+- 列表页和 CRUD 页面至少拆出筛选区、表格/列表区、弹窗或表单区，避免单文件持续膨胀
+- 所有表单提交必须具备 loading、错误提示和成功反馈，避免静默失败
+- 路由权限和按钮权限必须分别校验，前端隐藏不能替代后端鉴权
+
+### Full-stack 联动规则
+
+- 后端接口、字段、枚举变更时，必须同步更新前端类型定义、API 封装和相关页面映射
+- 新增业务枚举或状态值时，必须同步更新 Java enum、Flyway 字典数据和前端字典接入
+- 提交前至少验证后端编译/测试与前端 `type-check`/构建，不能只验证单侧
+- 涉及权限、登录态、审计链路的改动，必须同时补最小正向与反向验证

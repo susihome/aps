@@ -2,6 +2,7 @@ package com.aps.api.exception;
 
 import com.aps.api.dto.AjaxResult;
 import com.aps.service.exception.BusinessException;
+import com.aps.service.exception.ImportValidationException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<AjaxResult<Void>> handleBusinessException(BusinessException exception) {
         return ResponseEntity.status(exception.getCode())
                 .body(AjaxResult.error(exception.getCode(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(ImportValidationException.class)
+    public ResponseEntity<AjaxResult<java.util.List<com.aps.service.MaterialService.MaterialImportFailure>>> handleImportValidationException(ImportValidationException exception) {
+        return ResponseEntity.badRequest()
+                .body(AjaxResult.error(400, exception.getMessage(), exception.getFailures()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -10,6 +10,7 @@ import com.aps.service.repository.MoldRepository;
 import com.aps.service.repository.OperationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,22 @@ public class MoldService {
     @Transactional(readOnly = true)
     public List<Mold> getAllMolds() {
         return moldRepository.findAllByOrderByMoldCodeAsc();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Mold> searchMolds(String keyword, int limit) {
+        String normalizedKeyword = keyword == null ? "" : keyword.trim();
+        if (normalizedKeyword.isEmpty()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        return moldRepository
+                .findByMoldCodeContainingIgnoreCaseOrMoldNameContainingIgnoreCaseOrStatusContainingIgnoreCaseOrderByMoldCodeAsc(
+                        normalizedKeyword,
+                        normalizedKeyword,
+                        normalizedKeyword,
+                        PageRequest.of(0, safeLimit)
+                );
     }
 
     @Transactional(readOnly = true)

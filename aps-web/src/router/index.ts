@@ -98,6 +98,12 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '模具管理', icon: 'Box', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:mold:list'] }
         },
         {
+          path: 'material-mold-bindings',
+          name: 'MaterialMoldBinding',
+          component: () => import('../views/MaterialMoldBinding.vue'),
+          meta: { requiresAuth: true, title: '物料模具关联', icon: 'Collection', group: '基础数据', groupIcon: 'Setting', permissions: ['basedata:materialmold:list'] }
+        },
+        {
           path: 'schedule-time-parameter',
           name: 'ScheduleTimeParameter',
           component: () => import('../views/ScheduleTimeParameter.vue'),

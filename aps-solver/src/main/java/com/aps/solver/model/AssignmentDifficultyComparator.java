@@ -2,13 +2,18 @@ package com.aps.solver.model;
 
 import com.aps.domain.enums.OrderPriority;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Comparator;
 
 /**
  * AssignmentPlanningModel 难度比较器
  * 用于 Timefold 构造启发式算法
  */
-public class AssignmentDifficultyComparator implements Comparator<AssignmentPlanningModel> {
+public class AssignmentDifficultyComparator implements Comparator<AssignmentPlanningModel>, Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Override
     public int compare(AssignmentPlanningModel a1, AssignmentPlanningModel a2) {

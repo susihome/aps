@@ -1,6 +1,7 @@
 package com.aps.service.repository;
 
 import com.aps.domain.entity.Mold;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -18,4 +19,7 @@ public interface MoldRepository extends JpaRepository<Mold, UUID> {
     boolean existsByMoldCodeAndIdNot(String moldCode, UUID id);
 
     List<Mold> findAllByOrderByMoldCodeAsc();
+
+    List<Mold> findByMoldCodeContainingIgnoreCaseOrMoldNameContainingIgnoreCaseOrStatusContainingIgnoreCaseOrderByMoldCodeAsc(
+            String moldCode, String moldName, String status, Pageable pageable);
 }

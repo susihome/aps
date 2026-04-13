@@ -5,6 +5,7 @@ import com.aps.api.dto.MoldDto;
 import com.aps.domain.entity.Mold;
 import com.aps.service.MoldService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -25,8 +26,12 @@ public class MoldController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('basedata:mold:list')")
-    public AjaxResult<List<MoldDto>> getAllMolds() {
-        List<Mold> molds = moldService.getAllMolds();
+    public AjaxResult<List<MoldDto>> getAllMolds(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) Integer limit) {
+        List<Mold> molds = keyword == null || keyword.trim().isEmpty()
+                ? moldService.getAllMolds()
+                : moldService.searchMolds(keyword, limit);
         return AjaxResult.success(molds.stream().map(MoldDto::fromEntity).toList());
     }
 

@@ -6,6 +6,17 @@
 
 仓库内的代理协作规范、代码约束和模块约定统一以 [AGENTS.md](AGENTS.md) 为准。
 
+### 日常开发速查
+
+- **新功能**：先做方案，再实现；默认按 TDD 推进，完成后做一次 code review
+- **修 Bug**：优先按“失败测试 -> 修复 -> 验证”的顺序处理
+- **Java / Spring Boot**：默认遵循 `spring-boot-engineer` + `springboot-tdd`；涉及安全时补充 `springboot-security`
+- **Vue 3**：默认遵循 `vue-best-practices`；路由权限相关改动补充 `vue-router-best-practices`
+- **代码清理**：清理死代码、重复代码、文件结构时按 `clean-code` 方式处理
+- **接口联动**：后端字段、枚举、接口变更时必须同步更新前端类型和 API 封装
+- **提交前最小验证**：后端至少完成编译/测试，前端至少完成 `npm run type-check` 和构建验证
+- **更多详细规则**：查看 [AGENTS.md](AGENTS.md) 中的 `Recommended Skills` 和 `Additional Project Rules`
+
 ## 快速开始
 
 ### 启动依赖服务

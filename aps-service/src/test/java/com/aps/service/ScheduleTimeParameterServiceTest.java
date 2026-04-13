@@ -1,6 +1,5 @@
 package com.aps.service;
 
-import com.aps.domain.entity.Resource;
 import com.aps.domain.entity.ScheduleTimeParameter;
 import com.aps.service.exception.ResourceConflictException;
 import com.aps.service.exception.ResourceNotFoundException;

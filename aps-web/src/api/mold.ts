@@ -38,8 +38,11 @@ function unwrap<T>(result: AjaxResult<T>): T {
 }
 
 export const moldApi = {
-  getAll: async () => {
-    const { data } = await axiosInstance.get<AjaxResult<Mold[]>>('/molds')
+  getAll: async (keyword?: string, limit?: number) => {
+    const params: Record<string, string | number> = {}
+    if (keyword && keyword.trim()) params.keyword = keyword.trim()
+    if (limit != null) params.limit = limit
+    const { data } = await axiosInstance.get<AjaxResult<Mold[]>>('/molds', { params })
     return unwrap(data)
   },
 

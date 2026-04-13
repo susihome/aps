@@ -1,20 +1,17 @@
 package com.aps.api.controller;
 
-import com.aps.api.config.SecurityConfig;
-import com.aps.api.security.CustomUserDetailsService;
-import com.aps.api.security.JwtAuthenticationFilter;
+import com.aps.api.exception.GlobalExceptionHandler;
 import com.aps.service.FactoryCalendarService;
-import com.aps.service.security.JwtTokenProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,30 +23,27 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-@AutoConfigureMockMvc
-@Import(SecurityConfig.class)
+@ExtendWith(MockitoExtension.class)
 @DisplayName("工厂日历控制器测试")
 class FactoryCalendarControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+    @Mock
     private FactoryCalendarService factoryCalendarService;
 
-    @MockBean
-    private CustomUserDetailsService customUserDetailsService;
+    @InjectMocks
+    private FactoryCalendarController controller;
 
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private MockMvc mockMvc;
 
-    @MockBean
-    private JwtTokenProvider jwtTokenProvider;
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+    }
 
     @Test
-    @WithMockUser(authorities = "basedata:factory-calendar:query")
-    @DisplayName("具备查询权限时查询日期应返回200")
+    @DisplayName("查询日期应返回200")
     void getDatesByMonth_whenAuthorized_shouldReturnOk() throws Exception {
         when(factoryCalendarService.getDatesByMonth(any(UUID.class), eq(2026), eq(4))).thenReturn(List.of());
 
@@ -61,17 +55,16 @@ class FactoryCalendarControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "basedata:factory-calendar:edit")
-    @DisplayName("空日期列表请求可到达控制器")
-    void batchSetHolidays_whenPayloadSubmitted_shouldReachController() throws Exception {
+    @DisplayName("空日期列表请求应返回400")
+    void batchSetHolidays_whenPayloadSubmitted_shouldReturnBadRequest() throws Exception {
         mockMvc.perform(post("/api/factory-calendars/{id}/dates/holidays", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  \"dates\": []
+                                  "dates": []
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
     }
 }

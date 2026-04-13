@@ -1,6 +1,5 @@
 package com.aps.solver;
 
-import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
 import ai.timefold.solver.test.api.score.stream.ConstraintVerifier;
 import com.aps.domain.entity.Mold;
 import com.aps.domain.entity.Resource;

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <Match>
+        <Package name="com.aps.domain.entity"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.solver.model"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.service"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.service"/>
+        <Class name="~com\.aps\.service\..*(Result|View|Event)$"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.aspect"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.config"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.controller"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.websocket"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.dto"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.aps.api.controller"/>
+        <Class name="~com\.aps\.api\.controller\..*\$.*Request$"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="com.aps.service.MaterialService"/>
+        <Method name="parseNullableBoolean"/>
+        <Bug pattern="NP_BOOLEAN_RETURN_NULL"/>
+    </Match>
+</FindBugsFilter>

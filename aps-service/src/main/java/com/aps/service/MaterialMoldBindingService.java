@@ -107,7 +107,7 @@ public class MaterialMoldBindingService {
                              Integer changeoverTimeMinutes, Boolean enabled,
                              LocalDateTime validFrom, LocalDateTime validTo,
                              String remark) {
-        binding.setPriority(priority == null ? 0 : priority);
+        binding.setPriority(priority != null ? priority : Integer.valueOf(0));
         binding.setIsDefault(Boolean.TRUE.equals(isDefault));
         binding.setIsPreferred(Boolean.TRUE.equals(isPreferred));
         binding.setCycleTimeMinutes(cycleTimeMinutes);

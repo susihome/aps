@@ -1,4 +1,5 @@
 import axiosInstance from './axios'
+import type { AxiosResponse } from 'axios'
 import type { AjaxResult } from './types'
 
 export interface Material {
@@ -55,6 +56,22 @@ export interface UpdateMaterialRequest {
   productGroup?: string | null
 }
 
+export interface MaterialImportResult {
+  totalCount: number
+  createdCount: number
+  updatedCount: number
+  failedCount: number
+  failures: MaterialImportFailure[]
+  errorFileName: string | null
+  errorFileToken: string | null
+}
+
+export interface MaterialImportFailure {
+  rowNumber: number
+  columnName: string
+  message: string
+}
+
 function unwrap<T>(result: AjaxResult<T>): T {
   if (result.code !== 200 || result.data == null) {
     throw new Error(result.message || '请求失败')
@@ -63,8 +80,11 @@ function unwrap<T>(result: AjaxResult<T>): T {
 }
 
 export const materialApi = {
-  getAll: async () => {
-    const { data } = await axiosInstance.get<AjaxResult<Material[]>>('/materials')
+  getAll: async (keyword?: string, limit?: number) => {
+    const params: Record<string, string | number> = {}
+    if (keyword && keyword.trim()) params.keyword = keyword.trim()
+    if (limit != null) params.limit = limit
+    const { data } = await axiosInstance.get<AjaxResult<Material[]>>('/materials', { params })
     return unwrap(data)
   },
 
@@ -88,5 +108,29 @@ export const materialApi = {
     if (data.code !== 200) {
       throw new Error(data.message || '请求失败')
     }
+  },
+
+  exportFile: async (format: 'csv' | 'xlsx' = 'xlsx'): Promise<AxiosResponse<Blob>> => {
+    return axiosInstance.get('/materials/export', {
+      params: { format },
+      responseType: 'blob',
+    })
+  },
+
+  importFile: async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await axiosInstance.post<AjaxResult<MaterialImportResult>>('/materials/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return unwrap(data)
+  },
+
+  downloadImportErrorFile: async (token: string): Promise<AxiosResponse<Blob>> => {
+    return axiosInstance.get(`/materials/import-errors/${token}`, {
+      responseType: 'blob',
+    })
   },
 }
