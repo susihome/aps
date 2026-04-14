@@ -3,9 +3,7 @@
     <el-header class="layout-header">
       <div class="header-left">
         <div class="logo-area" @click="router.push('/dashboard')">
-          <div class="logo-icon">
-            <el-icon :size="22" color="#fff"><Cpu /></el-icon>
-          </div>
+          <img src="@/assets/logo.png" alt="APS" class="logo-img" />
           <span v-if="!isCollapsed" class="logo-text">APS 系统</span>
         </div>
         <el-button
@@ -381,14 +379,10 @@ onUnmounted(() => {
   padding: 4px 0;
 }
 
-.logo-icon {
+.logo-img {
   width: 34px;
   height: 34px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
   flex-shrink: 0;
 }
 

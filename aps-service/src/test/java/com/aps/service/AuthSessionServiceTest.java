@@ -1,6 +1,7 @@
 package com.aps.service;
 
 import com.aps.domain.entity.AuthSession;
+import com.aps.domain.entity.AuthUserSessionState;
 import com.aps.domain.enums.AuthSessionStatus;
 import com.aps.service.repository.AuthSessionRepository;
 import com.aps.service.repository.AuthUserSessionStateRepository;
@@ -104,5 +105,33 @@ class AuthSessionServiceTest {
 
         verify(authSessionRepository).save(session);
         assertThat(session.getLastAccessAt()).isAfter(previousAccessTime);
+    }
+
+    @Test
+    @DisplayName("撤销全部会话时应更新状态并提升会话版本")
+    void revokeAllUserSessions_shouldRevokeSessionsAndBumpVersion() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        AuthSession session = new AuthSession();
+        session.setId(sessionId);
+        session.setUserId(userId);
+        session.setStatus(AuthSessionStatus.ACTIVE);
+
+        AuthUserSessionState state = new AuthUserSessionState();
+        state.setUserId(userId);
+        state.setSessionVersion(3L);
+
+        when(authSessionRepository.findByUserIdAndStatus(userId, AuthSessionStatus.ACTIVE)).thenReturn(List.of(session));
+        when(authUserSessionStateRepository.findById(userId)).thenReturn(java.util.Optional.of(state));
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        authSessionService.revokeAllUserSessions(userId);
+
+        assertThat(session.getStatus()).isEqualTo(AuthSessionStatus.REVOKED);
+        assertThat(state.getSessionVersion()).isEqualTo(4L);
+        verify(authSessionRepository).saveAll(List.of(session));
+        verify(stringRedisTemplate).delete("auth:refresh:" + sessionId);
+        verify(stringRedisTemplate).delete("auth:user:sessions:" + userId);
+        verify(valueOperations).set("auth:user:version:" + userId, "4");
     }
 }

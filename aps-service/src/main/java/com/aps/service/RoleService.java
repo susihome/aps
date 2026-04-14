@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -84,7 +85,7 @@ public class RoleService {
     @Audited(action = AuditAction.PERMISSION_GRANT, resource = "Role")
     public void assignPermissions(UUID roleId, List<UUID> permissionIds) {
         Role role = getRoleById(roleId);
-        List<Permission> permissions = permissionRepository.findAllById(permissionIds);
+        List<Permission> permissions = new ArrayList<>(permissionRepository.findAllById(permissionIds));
         role.setPermissions(permissions);
         roleRepository.save(role);
     }

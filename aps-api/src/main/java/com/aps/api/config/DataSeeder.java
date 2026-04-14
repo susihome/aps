@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -56,7 +58,7 @@ public class DataSeeder implements CommandLineRunner {
             if (adminPassword == null || adminPassword.isBlank()) {
                 log.warn("未配置管理员密码 (app.seed.admin.password)，跳过管理员用户创建");
             } else {
-                User admin = userService.createUser(adminUsername, adminPassword, adminEmail);
+                User admin = userService.createUser(adminUsername, adminPassword, adminEmail, List.of());
                 userService.assignRole(admin.getId(), RoleType.ADMIN);
                 log.info("默认管理员用户已创建: {}", adminUsername);
             }
@@ -64,7 +66,7 @@ public class DataSeeder implements CommandLineRunner {
             if (plannerPassword == null || plannerPassword.isBlank()) {
                 log.warn("未配置计划员密码 (app.seed.planner.password)，跳过计划员用户创建");
             } else {
-                User planner = userService.createUser("planner", plannerPassword, "planner@aps.com");
+                User planner = userService.createUser("planner", plannerPassword, "planner@aps.com", List.of());
                 userService.assignRole(planner.getId(), RoleType.PLANNER);
                 log.info("默认计划员用户已创建: planner");
             }
@@ -72,7 +74,7 @@ public class DataSeeder implements CommandLineRunner {
             if (supervisorPassword == null || supervisorPassword.isBlank()) {
                 log.warn("未配置主管密码 (app.seed.supervisor.password)，跳过主管用户创建");
             } else {
-                User supervisor = userService.createUser("supervisor", supervisorPassword, "supervisor@aps.com");
+                User supervisor = userService.createUser("supervisor", supervisorPassword, "supervisor@aps.com", List.of());
                 userService.assignRole(supervisor.getId(), RoleType.SUPERVISOR);
                 log.info("默认主管用户已创建: supervisor");
             }

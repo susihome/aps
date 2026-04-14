@@ -4,7 +4,7 @@
     <div class="brand-section">
       <div class="brand-header">
         <div class="brand-icon">
-          <el-icon><Calendar /></el-icon>
+          <img src="@/assets/logo.png" alt="APS" class="brand-icon-img" />
         </div>
         <h2>APS</h2>
       </div>
@@ -34,7 +34,7 @@
     <div class="form-section">
       <div class="login-card" :class="{ shake: showShake }">
         <div class="card-icon">
-          <el-icon><Calendar /></el-icon>
+          <img src="@/assets/logo.png" alt="APS" class="card-icon-img" />
         </div>
 
         <h3>APS智能排产</h3>
@@ -98,7 +98,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { msgSuccess, msgError } from '@/utils/message'
-import { User, Lock, Calendar, Document, Setting, DataLine } from '@element-plus/icons-vue'
+import { User, Lock, Document, Setting, DataLine } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 
@@ -200,13 +200,15 @@ const handleLogin = async () => {
 .brand-icon {
   width: 48px;
   height: 48px;
-  background: rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  backdrop-filter: blur(10px);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.brand-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .brand-header h2 {
@@ -317,15 +319,16 @@ const handleLogin = async () => {
 .card-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
   border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  color: white;
+  overflow: hidden;
   margin: 0 auto 24px;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.card-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .login-card h3 {
